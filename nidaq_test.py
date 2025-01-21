@@ -43,35 +43,19 @@ def setup(anout=False, anin=False, dig=False, cin=False, cout=False):
     
     return None
 
+def test(device_name):
+    with nidaqmx.Task() as task:
+        for ai_channel in nidaqmx.system.System.local().devices[device_name].ai_physical_chans:
+            print(f"AI Channel: {ai_channel.name}")
+            
+            task.ai_channels.add_ai_voltage_chan(ai_channel.name)
 
-    # ['Dev1', 'SimDev1']
+        task.start()
+        data = task.read(number_of_samples_per_channel=1)
+        print("Signal Data from Channels:")
+        for i, ai_channel in enumerate(task.ai_channels):
+            print(f"  {ai_channel.physical_channel.name}: {data[i]}")
 
-    # DAQ_device = system.devices['SimDev1'] 
-    # ci_names = [ci.name for ci in DAQ_device.ci_physical_chans]
-    # print(f'counter input names: {ci_names}')
-    # # ['Dev1/ctr0', 'Dev1/ctr1', 'Dev1/ctr2', 'Dev1/ctr3']
-
-    # co_names = [co.name for co in DAQ_device.co_physical_chans]
-    # print(f'counter output names: {co_names}')
-    # # ['Dev1/ctr0', 'Dev1/ctr1', 'Dev1/ctr2', 'Dev1/ctr3', 'Dev1/freqout']
-
-# with nidaqmx.Task() as task:
-#     task.ci_channels.add_ci_count_edges_chan(
-#         "Dev1/ctr0", edge=Edge.RISING, initial_count=0
-#     )
-#     task.timing.cfg_implicit_timing(
-#         sample_mode=AcquisitionType.CONTINUOUS, samps_per_chan=1000
-#     )
-
-#     task.start()
-
-#     reader = CounterReader(task.in_stream)
-#     data = reader.read_many_sample_uint32(
-#         number_of_samples_per_channel=READ_ALL_AVAILABLE
-#     )
-
-#     print('Acquired %s samples' % len(data))
-#     print(data)
 
 if __name__ == '__main__':
     setup(anin=True, anout=True)
