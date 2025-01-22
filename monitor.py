@@ -65,4 +65,4 @@ def monitor(device, channels, duration, rate, interval):
     plt.show()
 
 if __name__ == "__main__":
-    monitor(device="Dev1", channels=["ai0"], duration=200, rate=100, interval=0.5)
+    monitor(device="Dev1", channels=["ai6"], duration=200, rate=100, interval=0.5)

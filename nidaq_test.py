@@ -182,13 +182,13 @@ if __name__ == '__main__':
     # setup(anin=True, anout=True)
     test_connection('Dev1')
 
-    # device_name = "Dev1"
-    # channel_name = "ai5"
-    # duration = 5  # seconds
-    # sampling_rate = 1000  # Hz
+    device_name = "Dev1"
+    channel_name = "ai6"
+    duration = 50  # seconds
+    sampling_rate = 200  # Hz
 
-    # timestamps, data = time_series(device_name, channel_name, duration, sampling_rate)
+    timestamps, data = time_series(device_name, channel_name, duration, sampling_rate)
     
-    # plt.plot(timestamps, data) 
-    # plt.tight_layout()
-    # plt.show()
+    plt.plot(timestamps, data) 
+    plt.tight_layout()
+    plt.show()
