@@ -7,27 +7,25 @@ import time
 
 class Galvo:
     def __init__(self, config=None, **kwargs):
-        # Default configuration
         defaults = {
-            "x_numsteps": 400,  # Number of steps for X-axis
-            "y_numsteps": 400,  # Number of steps for Y-axis
-            "extra_steps": 100,  # Optional extra steps for stability
-            "x_offset": -1.2,  # Offset for X-axis
-            "y_offset": 1.5,  # Offset for Y-axis
-            "x_step": 0,  # Step size for X-axis
-            "y_step": 0,  # Step size for Y-axis
-            "dwell": 10,  # Dwell time per point
-            "amp_x": 0.5,  # X-axis amplitude
-            "amp_y": 0.5,  # Y-axis amplitude
-            "freq_x": 100,  # X-axis frequency (ignored for raster)
-            "freq_y": 1,  # Y-axis frequency (ignored for raster)
-            "duration": 5,  # Scan duration
-            "rate": 10000,  # Sampling rate
-            "device": 'Dev1',  # NI DAQ device name
-            "ao_chans": ['ao1', 'ao0']  # Analog output channels
+            "x_numsteps": 400,  
+            "y_numsteps": 400,  
+            "extra_steps": 100,  # optional, for stability
+            "x_offset": -1.2,  
+            "y_offset": 1.5, 
+            "x_step": 0,  
+            "y_step": 0,  
+            "dwell": 10,  # per (x,y) combo
+            "amp_x": 0.5, 
+            "amp_y": 0.5,  
+            "freq_x": 100,  # ignored for raster
+            "freq_y": 1,  # ignored for raster
+            "duration": 5,  
+            "rate": 10000,  # sampling rate
+            "device": 'Dev1',  # nidaq device name
+            "ao_chans": ['ao1', 'ao0']  # for galvos
         }
 
-        # Update defaults with user-specified config and kwargs
         try:
             if config:
                 defaults.update(config)
@@ -37,6 +35,8 @@ class Galvo:
         defaults.update(kwargs)
         for key, val in defaults.items():
             setattr(self, key, val)
+
+
 
     def gen_raster(self):
         num_xsteps = self.x_numsteps
@@ -67,7 +67,6 @@ class Galvo:
 
 
 
-
     def do_raster(self):
         waveform = self.gen_raster()
 
@@ -87,8 +86,8 @@ class Galvo:
             print('raster complete')
 
 
+
 if __name__ == '__main__':
-    # Configuration for the Galvo
     config = {
         "device": 'Dev1',
         "ao_chans": ['ao1', 'ao0'],
@@ -96,17 +95,13 @@ if __name__ == '__main__':
         "amp_y": 0.5,
         "duration": 5,
         "rate": 100,
-        "x_numsteps": 100,  # X-axis resolution (number of sweeps)
-        "y_numsteps": 100    # Y-axis resolution (number of steps)
+        "x_numsteps": 100,  
+        "y_numsteps": 70    # must be a integer divisor of x_numsteps for a true raster
     }
 
-    # Create Galvo object
     galvo = Galvo(config)
-
-    # Generate the raster waveform
     waveform = galvo.gen_raster()
 
-    # Visualize the waveform
     plt.figure(figsize=(10, 6))
     plt.plot(waveform[0], label='x, fast')
     plt.plot(waveform[1], label='y, slow')
