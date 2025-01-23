@@ -7,8 +7,8 @@ import time
 class LockIn:
     def __init__(self, device, ai_chan, **kwargs):
         defaults = {
-            "device": 'Dev1',
-            "ai_chan": 'ai1', 
+            "device": device,
+            "ai_chan": ai_chan, 
             "sampling_rate": 100,
             "duration": 50
         }
@@ -87,7 +87,8 @@ class LockIn:
 
             print(f"taking {num_samples} samples from {self.name} at {self.sampling_rate} hz")
             task.start()
-            data = task.read(number_of_samples_per_channel=num_samples)
+            time.sleep(self.duration + 0.1) # buffer to make sure the task is actually done
+            data = task.read(number_of_samples_per_channel=num_samples, timeout=1)
             task.stop()
 
         print("Data collection complete")
@@ -95,5 +96,16 @@ class LockIn:
 
 
 if __name__ == '__main__':
-    lockin = LockIn('Dev1', 'ai1', sampling_rate=100, duration=1)
+    lockin = LockIn('Dev1', 'ai1', sampling_rate=20, duration=60)
     times, data = lockin.collect()
+    other = LockIn('Dev1', 'ai0', sampling_rate=20, duration=60)
+    times2, data2 = other.collect()
+
+    plt.plot(times, data, label='ai1', color='black')
+    plt.plot(times2, data2, label='ai0 (nothing useful)', color='red')
+    plt.xlabel('Time, s')
+    plt.ylabel('Voltage, V')
+    plt.title('long-time comparison of lockin BG with unoccupied channel')
+    plt.grid(True)
+    plt.legend()
+    plt.show()

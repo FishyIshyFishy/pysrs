@@ -15,7 +15,7 @@ class Galvo:
             "y_offset": 1.5, 
             "x_step": 0,  
             "y_step": 0,  
-            "dwell": 10,  # per (x,y) combo
+            "dwell": 10,  # per (x,y) combo, in us
             "amp_x": 0.5, 
             "amp_y": 0.5,  
             "freq_x": 100,  # ignored for raster
@@ -68,7 +68,9 @@ class Galvo:
 
 
     def do_raster(self):
-        waveform = self.gen_raster()
+        if not hasattr(self, 'waveform'): 
+            self.waweform = self.gen_raster()
+        print(f'waveform generated')
 
         with nidaqmx.Task() as task:
             for chan in self.ao_chans:
@@ -77,13 +79,13 @@ class Galvo:
             task.timing.cfg_samp_clk_timing(
                 rate=self.rate,
                 sample_mode=AcquisitionType.FINITE,
-                samps_per_chan=waveform.shape[1]
+                samps_per_chan=self.waveform.shape[1]
             )
 
             print(f'raster scanning with channels {self.ao_chans}')
-            task.write(waveform, auto_start=True)
+            task.write(self.waveform, auto_start=True)
             task.wait_until_done()
-            print('raster complete')
+            print('raster complete\n')
 
 
 
@@ -96,21 +98,20 @@ if __name__ == '__main__':
         "duration": 5,
         "rate": 100,
         "x_numsteps": 100,  
-        "y_numsteps": 70    # must be a integer divisor of x_numsteps for a true raster
+        "y_numsteps": 100    # must be a integer divisor of x_numsteps for a true raster
     }
 
     galvo = Galvo(config)
-    waveform = galvo.gen_raster()
+    galvo.waveform = galvo.gen_raster()
 
     plt.figure(figsize=(10, 6))
-    plt.plot(waveform[0], label='x, fast')
-    plt.plot(waveform[1], label='y, slow')
+    plt.plot(galvo.waveform[0], label='x, fast', color='black')
+    plt.plot(galvo.waveform[1], label='y, slow', color='blue')
     plt.legend()
-    plt.xlabel('Time (s)')
-    plt.ylabel('Voltage (V)')
-    plt.title('Raster Scan Waveforms')
+    plt.xlabel('Time, s')
+    plt.ylabel('Voltage, V')
+    plt.title('raster scan waveforms')
     plt.grid()
     plt.show()
 
-    # Uncomment to perform the raster scan
-    # galvo.do_raster()
+    galvo.do_raster()
