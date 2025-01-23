@@ -84,7 +84,7 @@ if __name__ == '__main__':
         "rate": 1e5, # hz
         "numsteps_x": 100,  
         "numsteps_y": 100 , # must be a integer divisor of numsteps_x for a true raster
-        "dwell": 100, # us
+        "dwell": 50, # us
     }
 
     galvo = Galvo(config)
