@@ -6,6 +6,11 @@ import numpy as np
 import time
 import matplotlib.pyplot as plt
 
+'''
+old functions from initial testing
+now largely integrated into utils/insstruments/lockin.py
+'''
+
 def setup(anout=False, anin=False, dig=False, cin=False, cout=False):
     system = nidaqmx.system.System.local()
 
@@ -48,18 +53,18 @@ def setup(anout=False, anin=False, dig=False, cin=False, cout=False):
 def test(device_name):
     with nidaqmx.Task() as task:
         for ai_channel in nidaqmx.system.System.local().devices[device_name].ai_physical_chans:
-            print(f"AI Channel: {ai_channel.name}")
+            print(f'ai channel: {ai_channel.name}')
             
             task.ai_channels.add_ai_voltage_chan(ai_channel.name)
 
         task.start()
         data = task.read(number_of_samples_per_channel=1)
-        print("Signal Data from Channels:")
+        print('signal data from channels:')
         for i, ai_channel in enumerate(task.ai_channels):
-            print(f"  {ai_channel.physical_channel.name}: {data[i]}")
+            print(f'  {ai_channel.physical_channel.name}: {data[i]}')
 
 def test_connection(device_name):
-    print(f"Testing analog input channels for device: {device_name}")
+    print(f'testing ai input channels for {device_name}')
     
     connected_chans = []
     
@@ -71,21 +76,21 @@ def test_connection(device_name):
         data = task.read(number_of_samples_per_channel=1)
         task.stop()
         
-        print("Signal Data from Channels:")
+        print('signal data from channels:')
         for i, ai_chan in enumerate(task.ai_channels):
             chan = ai_chan.physical_channel.name
             voltage = float(data[i][0])
-            print(f"  {chan}: {voltage:.3f} V")
+            print(f'  {chan}: {voltage:.3f} V')
             
             if abs(voltage) > 0.01: 
                 connected_chans.append(chan)
     
-    print("\nConnected Channels Detected:")
+    print('\nconnected channels:')
     if connected_chans:
         for chan in connected_chans:
-            print(f"  {chan}")
+            print(f'  {chan}')
     else:
-        print("  No connected channels detected.")
+        print('  no connected channels detected')
     
 def time_series(device_name, channel_name, duration, sampling_rate):
     num_samples = int(duration * sampling_rate)
@@ -93,7 +98,7 @@ def time_series(device_name, channel_name, duration, sampling_rate):
     data = np.zeros(num_samples)
     
     with nidaqmx.Task() as task:
-        full_channel_name = f"{device_name}/{channel_name}"
+        full_channel_name = f'{device_name}/{channel_name}'
         task.ai_channels.add_ai_voltage_chan(full_channel_name)
         
         task.timing.cfg_samp_clk_timing(
@@ -102,26 +107,17 @@ def time_series(device_name, channel_name, duration, sampling_rate):
             samps_per_chan=num_samples
         )
         
-        print(f"Acquiring {num_samples} samples from {full_channel_name} at {sampling_rate} Hz")
+        print(f'taking {num_samples} samples from {full_channel_name} at {sampling_rate} Hz')
         
         task.start()
         time.sleep(duration + 0.1)  
         data = task.read(number_of_samples_per_channel=num_samples)
         task.stop()
     
-    print("Data acquisition complete.")
+    print('data acquisition complete')
     return timestamps, np.array(data)
 
 def live_series(device_name, channel_name, duration, sampling_rate):
-    """
-    Acquires and plots data from an analog input channel in real time.
-
-    Parameters:
-        device_name (str): Name of the device (e.g., 'Dev1').
-        channel_name (str): Name of the channel to read from (e.g., 'ai0').
-        duration (float): Duration of data acquisition in seconds.
-        sampling_rate (float): Sampling rate in samples per second.
-    """
     num_samples = int(duration * sampling_rate)
     interval = 1 / sampling_rate  # Interval between each sample
     total_samples = 0
@@ -131,15 +127,15 @@ def live_series(device_name, channel_name, duration, sampling_rate):
 
     plt.ion()  # Turn on interactive mode
     fig, ax = plt.subplots()
-    line, = ax.plot([], [], label=f"{device_name}/{channel_name}")
-    ax.set_xlabel("Time (s)")
-    ax.set_ylabel("Voltage (V)")
-    ax.set_title(f"Real-Time Data from {device_name}/{channel_name}")
+    line, = ax.plot([], [], label=f'{device_name}/{channel_name}')
+    ax.set_xlabel('Time (s)')
+    ax.set_ylabel('Voltage (V)')
+    ax.set_title(f'Real-Time Data from {device_name}/{channel_name}')
     ax.grid(True)
     ax.legend()
 
     with nidaqmx.Task() as task:
-        full_channel_name = f"{device_name}/{channel_name}"
+        full_channel_name = f'{device_name}/{channel_name}'
         task.ai_channels.add_ai_voltage_chan(full_channel_name)
         
         task.timing.cfg_samp_clk_timing(
@@ -147,7 +143,7 @@ def live_series(device_name, channel_name, duration, sampling_rate):
             sample_mode=AcquisitionType.CONTINUOUS
         )
 
-        print(f"Starting real-time data acquisition from {full_channel_name}...")
+        print(f'Starting real-time data acquisition from {full_channel_name}...')
         
         task.start()
         start_time = time.time()
@@ -159,31 +155,29 @@ def live_series(device_name, channel_name, duration, sampling_rate):
                 new_data = task.read(number_of_samples_per_channel=chunk_size)
                 total_samples += chunk_size
 
-                # Update data arrays
                 current_time = np.linspace(total_samples / sampling_rate, 
                                            (total_samples + chunk_size) / sampling_rate, 
                                            chunk_size, endpoint=False)
                 timestamps.extend(current_time)
                 data.extend(new_data)
 
-                # Update the plot
                 line.set_xdata(timestamps)
                 line.set_ydata(data)
                 ax.relim()
                 ax.autoscale_view()
-                plt.pause(0.01)  # Allow the plot to update
+                plt.pause(0.01)  
         
         task.stop()
     plt.ioff()
-    print("Data acquisition complete.")
+    print('Data acquisition complete.')
     plt.show()
 
 if __name__ == '__main__':
     # setup(anin=True, anout=True)
     test_connection('Dev1')
 
-    device_name = "Dev1"
-    channel_name = "ai6"
+    device_name = 'Dev1'
+    channel_name = 'ai6'
     duration = 50  # seconds
     sampling_rate = 200  # Hz
 
