@@ -72,6 +72,28 @@ class LockIn:
         print(f'acquisition done in {toc-tic} s')
         plt.show()
 
+    def collect(self, avg=True):
+        num_samples = int(self.duration * self.sampling_rate)
+        times = np.linspace(0, self.duration, num_samples)
+        data = []
+
+        with nidaqmx.Task() as task:
+            task.ai_channels.add_ai_voltage_chan(self.name)
+            task.timing.cfg_samp_clk_timing(
+                rate=self.sampling_rate,
+                sample_mode=AcquisitionType.FINITE,
+                samps_per_chan=num_samples
+            )
+
+            print(f"taking {num_samples} samples from {self.name} at {self.sampling_rate} hz")
+            task.start()
+            data = task.read(number_of_samples_per_channel=num_samples)
+            task.stop()
+
+        print("Data collection complete")
+        return times, np.array(data)
+
+
 if __name__ == '__main__':
-    lockin = LockIn('Dev1', 'ai1')
-    lockin.live_series()
+    lockin = LockIn('Dev1', 'ai1', sampling_rate=100, duration=1)
+    times, data = lockin.collect()
