@@ -74,3 +74,4 @@ class LockIn:
 
 if __name__ == '__main__':
     lockin = LockIn('Dev1', 'ai1')
+    lockin.live_series()
