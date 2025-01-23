@@ -8,13 +8,13 @@ import time
 class Galvo:
     def __init__(self, config=None, **kwargs):
         defaults = {
-            "x_numsteps": 400,  
-            "y_numsteps": 400,  
+            "numsteps_x": 400,  
+            "numsteps_y": 400,  
             "extra_steps": 100,  # optional, for stability
-            "x_offset": -1.2,  
-            "y_offset": 1.5, 
-            "x_step": 0,  
-            "y_step": 0,  
+            "offset_x": -1.2,  
+            "offset_y": 1.5, 
+            "step_x": 0,  
+            "step_y": 0,  
             "dwell": 10,  # per (x,y) combo, in us
             "amp_x": 0.5, 
             "amp_y": 0.5,  
@@ -39,32 +39,22 @@ class Galvo:
 
 
     def gen_raster(self):
-        num_xsteps = self.x_numsteps
-        num_ysteps = self.y_numsteps
+        self.dwell *= 1e-6 # convert to s from us
+        pixel_samples = max(1, int(self.dwell * self.rate))
+        total_samples = pixel_samples * self.numsteps_x * self.numsteps_y
 
-        x_rate = int(self.dwell * self.rate)
-        num_samples = num_xsteps * x_rate  
+        x_waveform = np.linspace(-self.amp_x, self.amp_x, self.numsteps_x, endpoint=False)
+        x_waveform = np.repeat(x_waveform, pixel_samples)
 
-        t_x = np.linspace(0, 1, x_rate, endpoint=False)
-        x_waveform = np.concatenate([
-            self.amp_x * (2 * (t_x % 1) - 1)  
-            for _ in range(num_xsteps)
-        ])
+        y_steps = np.linspace(-self.amp_y, self.amp_y, self.numsteps_y)
+        y_waveform = np.repeat(y_steps, self.numsteps_x * pixel_samples)
 
-        y_steps = np.linspace(-self.amp_y, self.amp_y, num_ysteps)
-        y_waveform = np.repeat(
-            y_steps,
-            num_xsteps * x_rate // num_ysteps
-        )
-
-        total_samples = len(x_waveform)
-        if len(y_waveform) < total_samples:
-            y_waveform = np.pad(y_waveform, (0, total_samples - len(y_waveform)), constant_values=y_waveform[-1])
+        if len(x_waveform) < total_samples:
+            x_waveform = np.pad(x_waveform, (0, total_samples - len(x_waveform)), constant_values=x_waveform[-1])
         else:
-            y_waveform = y_waveform[:total_samples]
+            x_waveform = x_waveform[:total_samples]
 
         return np.vstack([x_waveform, y_waveform])
-
 
 
     def do_raster(self):
@@ -96,9 +86,9 @@ if __name__ == '__main__':
         "amp_x": 0.5,
         "amp_y": 0.5,
         "duration": 5,
-        "rate": 100,
-        "x_numsteps": 100,  
-        "y_numsteps": 100    # must be a integer divisor of x_numsteps for a true raster
+        "rate": 1e5,
+        "numsteps_x": 100,  
+        "numsteps_y": 100    # must be a integer divisor of numsteps_x for a true raster
     }
 
     galvo = Galvo(config)
@@ -114,4 +104,4 @@ if __name__ == '__main__':
     plt.grid()
     plt.show()
 
-    galvo.do_raster()
+   #  galvo.do_raster()
