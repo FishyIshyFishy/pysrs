@@ -71,7 +71,7 @@ class Galvo:
             print(f'raster scanning with channels {self.ao_chans}')
             task.write(self.waveform, auto_start=True)
             task.wait_until_done()
-            print('raster complete\n')
+            print('raster complete')
 
 
 
@@ -84,23 +84,28 @@ if __name__ == '__main__':
         "rate": 1e5, # hz
         "numsteps_x": 100,  
         "numsteps_y": 100 , # must be a integer divisor of numsteps_x for a true raster
-        "dwell": 10, # us
+        "dwell": 100, # us
     }
 
     galvo = Galvo(config)
     galvo.waveform = galvo.gen_raster()
 
-    times = np.arange(galvo.waveform.shape[1]) / config['rate'] 
+    # times = np.arange(galvo.waveform.shape[1]) / config['rate'] 
 
-    plt.figure(figsize=(10, 6))
-    plt.plot(times, galvo.waveform[0], label='x, fast', color='black')
-    plt.plot(times, galvo.waveform[1], label='y, slow', color='blue')
-    plt.legend()
-    plt.xlabel('Time (s)')
-    plt.ylabel('Voltage (V)')
-    plt.title('Raster Scan Waveforms with Time Axis')
-    plt.grid()
-    plt.tight_layout()
-    plt.show()
+    # plt.figure(figsize=(10, 6))
+    # plt.plot(times, galvo.waveform[0], label='x, fast', color='black')
+    # plt.plot(times, galvo.waveform[1], label='y, slow', color='blue')
+    # plt.legend()
+    # plt.xlabel('time, s')
+    # plt.ylabel('voltage, V') 
+    # plt.title('raster scan waveforms')
+    # plt.grid()
+    # plt.tight_layout()
+    # plt.show()
 
-   #  galvo.do_raster()
+    tic = time.time()
+    for _ in range(10):
+        toc = time.time()
+        galvo.do_raster()
+        print(f'individual scan: {time.time() - toc:.4f}\n')
+    print(f'total scanning time: {time.time() - tic:.2f} s')
