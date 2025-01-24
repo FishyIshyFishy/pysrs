@@ -31,24 +31,25 @@ class Galvo:
         for key, val in defaults.items():
             setattr(self, key, val)
 
+        self.pixel_samples = max(1, int(self.dwell * self.rate))
+        self.total_samples = self.numsteps_x * self.numsteps_y * self.pixel_samples
 
+        self.waveform = self.gen_raster()
 
     def gen_raster(self):
         self.dwell *= 1e-6  
-        pixel_samples = max(1, int(self.dwell * self.rate))  
-        total_rowsamples = pixel_samples * self.numsteps_x
-        total_samples = total_rowsamples * self.numsteps_y
+        total_rowsamples = self.pixel_samples * self.numsteps_x
 
         x_row = np.linspace(-self.amp_x, self.amp_x, self.numsteps_x, endpoint=False)
-        x_waveform = np.tile(np.repeat(x_row, pixel_samples), self.numsteps_y)
+        x_waveform = np.tile(np.repeat(x_row, self.pixel_samples), self.numsteps_y)
 
         y_steps = np.linspace(self.amp_y, -self.amp_y, self.numsteps_y)  
         y_waveform = np.repeat(y_steps, total_rowsamples)
 
-        if len(x_waveform) < total_samples:
-            x_waveform = np.pad(x_waveform, (0, total_samples - len(x_waveform)), constant_values=x_waveform[-1])
+        if len(x_waveform) < self.total_samples:
+            x_waveform = np.pad(x_waveform, (0, self.total_samples - len(x_waveform)), constant_values=x_waveform[-1])
         else:
-            x_waveform = x_waveform[:total_samples]
+            x_waveform = x_waveform[:self.total_samples]
 
         return np.vstack([x_waveform, y_waveform])
 

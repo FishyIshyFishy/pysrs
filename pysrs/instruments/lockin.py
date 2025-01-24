@@ -96,9 +96,9 @@ class LockIn:
 
 
 if __name__ == '__main__':
-    lockin = LockIn('Dev1', 'ai1', sampling_rate=20, duration=60)
+    lockin = LockIn('Dev1', 'ai1', sampling_rate=200, duration=1)
     times, data = lockin.collect()
-    other = LockIn('Dev1', 'ai0', sampling_rate=20, duration=60)
+    other = LockIn('Dev1', 'ai0', sampling_rate=200, duration=1)
     times2, data2 = other.collect()
 
     plt.plot(times, data, label='ai1', color='black')
