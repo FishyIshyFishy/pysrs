@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 import time
 from pysrs.instruments.galvo_funcs import Galvo
 
+@staticmethod
 def lockin_scan(lockin_chan: str, galvo: Galvo) -> np.ndarray: # lockin_chan must be of the formal 'Dev1/ao0'
     with nidaqmx.Task() as ao_task, nidaqmx.Task() as ai_task:
         # configure galvos (ao) and lockin (ai)
