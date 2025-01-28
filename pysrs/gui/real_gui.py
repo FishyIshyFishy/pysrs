@@ -34,7 +34,13 @@ class GUI:
             'dwell': 1e-5
         }
 
+        self.colorbar = None
+        self.ax_hslice = None
+        self.ax_vslice = None
+
         self.create_widgets()
+
+        self.acquire_single(startup=True)
 
     def create_widgets(self):
         style = ttk.Style()
@@ -105,7 +111,7 @@ class GUI:
         self.start_button['state'] = 'normal'
         self.stop_button['state'] = 'disabled'
 
-    def acquire_single(self):
+    def acquire_single(self, startup=False):
         if self.running:
             messagebox.showwarning('Warning', 'Stop continuous acquisition first.')
             return
@@ -113,8 +119,8 @@ class GUI:
         try:
             self.update_config()
             galvo = Galvo(self.config)
-            if self.simulation_mode.get():
-                data = self.generate_data()
+            if startup or self.simulation_mode.get(): 
+                data = self.generate_data()         
             else:
                 data = lockin_scan(self.config['device'] + '/' + self.config['ai_chan'], galvo)
             self.display(data)
@@ -140,6 +146,7 @@ class GUI:
             self.start_button['state'] = 'normal'
             self.stop_button['state'] = 'disabled'
 
+
     def update_config(self):
         for key, entry in self.param_entries.items():
             value = entry.get()
@@ -153,7 +160,6 @@ class GUI:
                 else:
                     self.config[key] = int(value)
 
-                # Show feedback on successful update
                 self.show_feedback(entry)
 
             except ValueError:
@@ -188,56 +194,35 @@ class GUI:
 
         return data
 
-
-
     def display(self, data):
-        print("Starting display function")
-
-        if self.ax is None or self.fig is None:
-            print("Reinitializing figure and axis")
-            self.fig, self.ax = plt.subplots(figsize=(10, 10))
-            self.canvas = FigureCanvasTkAgg(self.fig, master=self.canvas_widget)
-            self.canvas_widget = self.canvas.get_tk_widget()
-            self.canvas_widget.grid(row=0, column=0, padx=5, pady=5)
-
         self.ax.clear()
-
-        print(f"Data shape: {data.shape}, Data range: {data.min()} to {data.max()}")
-
         im = self.ax.imshow(
             data,
             extent=[-self.config['amp_x'], self.config['amp_x'], -self.config['amp_y'], self.config['amp_y']],
             origin='lower',
-            aspect='auto',
+            aspect='equal',  
             cmap='viridis'
         )
         self.ax.set_title('Live Data')
         self.ax.set_xlabel('X Amplitude')
         self.ax.set_ylabel('Y Amplitude')
 
-        if hasattr(self, 'colorbar') and self.colorbar:
-            print("Removing existing colorbar")
-            self.colorbar.remove()
-
-        self.colorbar = self.fig.colorbar(im, ax=self.ax, orientation='vertical', pad=0.1)
-        self.colorbar.set_label('Intensity')
-        print("Colorbar added")
+        if hasattr(self, 'colorbar') and self.colorbar is not None:
+            self.colorbar.mappable.set_clim(vmin=data.min(), vmax=data.max())
+            self.colorbar.update_normal(im)
+        else:
+            self.colorbar = self.fig.colorbar(im, ax=self.ax, orientation='vertical', pad=0.1)
+            self.colorbar.set_label('Intensity')
 
         mid_y, mid_x = data.shape[0] // 2, data.shape[1] // 2
         x_slice = data[mid_y, :] 
         y_slice = data[:, mid_x] 
-        print(f"Midpoint indices: X={mid_x}, Y={mid_y}")
-        print(f"Horizontal slice range: {x_slice.min()} to {x_slice.max()}")
-        print(f"Vertical slice range: {y_slice.min()} to {y_slice.max()}")
 
         if hasattr(self, 'ax_hslice') and self.ax_hslice:
-            print("Removing existing horizontal slice plot")
-            self.ax_hslice.remove()
-        if hasattr(self, 'ax_vslice') and self.ax_vslice:
-            print("Removing existing vertical slice plot")
-            self.ax_vslice.remove()
+            self.ax_hslice.clear()
+        else:
+            self.ax_hslice = self.fig.add_axes([0.1, 0.88, 0.8, 0.1])  
 
-        self.ax_hslice = self.fig.add_axes([0.1, 0.88, 0.8, 0.1])
         self.ax_hslice.plot(
             np.linspace(-self.config['amp_x'], self.config['amp_x'], data.shape[1]),
             x_slice,
@@ -246,7 +231,11 @@ class GUI:
         self.ax_hslice.set_title('Horizontal Slice')
         self.ax_hslice.set_xticks([])
 
-        self.ax_vslice = self.fig.add_axes([0.92, 0.1, 0.02, 0.8])
+        if hasattr(self, 'ax_vslice') and self.ax_vslice:
+            self.ax_vslice.clear()
+        else:
+            self.ax_vslice = self.fig.add_axes([0.92, 0.1, 0.02, 0.8]) 
+
         self.ax_vslice.plot(
             y_slice,
             np.linspace(-self.config['amp_y'], self.config['amp_y'], data.shape[0]),
@@ -254,27 +243,7 @@ class GUI:
         )
         self.ax_vslice.set_title('Vertical Slice', rotation=-90)
         self.ax_vslice.set_yticks([])
-
-        print("Setting up cursor hover interactivity")
-
-        def on_hover(event):
-            if event.inaxes == self.ax:
-                x, y = event.xdata, event.ydata
-                if -self.config['amp_x'] <= x <= self.config['amp_x'] and -self.config['amp_y'] <= y <= self.config['amp_y']:
-                    i = int((x + self.config['amp_x']) / (2 * self.config['amp_x']) * data.shape[1])
-                    j = int((y + self.config['amp_y']) / (2 * self.config['amp_y']) * data.shape[0])
-                    intensity = data[j, i]
-                    self.ax.set_title(f'Live Data - Intensity: {intensity:.2f} (X: {x:.2f}, Y: {y:.2f})')
-                    self.canvas.draw_idle()
-
-        self.canvas.mpl_connect('motion_notify_event', on_hover)
-        print("Redrawing canvas")
         self.canvas.draw()
-        print("Display function complete")
-
-
-
-
 
     def close(self):
         self.running = False  
