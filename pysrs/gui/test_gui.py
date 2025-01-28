@@ -10,7 +10,7 @@ def gen():
     data = [(np.random.uniform(0, 1), np.random.uniform(0, 1), np.random.uniform(0, 100)) for _ in range(100)]
     return data
 
-class GUI:
+class GUITest:
     def __init__(self, root):
         self.root = root
         self.root.title("gui test")
@@ -63,7 +63,6 @@ class GUI:
         self.start_button["state"] = "disabled"
         self.stop_button["state"] = "normal"
 
-        # Start scan in a separate thread
         scan_thread = threading.Thread(target=self.scan, daemon=True)
         scan_thread.start()
 
@@ -110,5 +109,5 @@ class GUI:
 
 if __name__ == "__main__":
     root = tk.Tk()
-    app = GUI(root)
+    app = GUITest(root)
     root.mainloop()
