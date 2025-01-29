@@ -6,9 +6,9 @@ class Zaber:
     def __init__(self, config=None, **kwargs):
         defaults = {
             'serial': 'COM3', 
-            'num_shifts': 200,  
-            'shift_size': 10,  # um
-            'shift_offset': 10,  # mm
+            'num_shifts': 50,  
+            'shift_size': 10,  # mm
+            'shift_offset': 1,  # mm
         }
 
         if config:
@@ -52,9 +52,9 @@ class Zaber:
 if __name__ == '__main__':
     config = {
         'serial': 'COM3', 
-        'num_shifts': 200,  
-        'shift_size': 10,  # um
-        'shift_offset': 10,  # mm
+        'num_shifts': 3,  
+        'shift_size': 5,  # mm
+        'shift_offset': 20,  # mm
     }
     stage = Zaber(config)
     stage.scan_range()
