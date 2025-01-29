@@ -33,9 +33,9 @@ class GUI:
             'amp_x': 0.5,
             'amp_y': 0.5,
             'rate': 1e5,
-            'numsteps_x': 100,
-            'numsteps_y': 100,
-            'numsteps_extra': 100,
+            'numsteps_x': 200,
+            'numsteps_y': 200,
+            'numsteps_extra': 50,
             'dwell': 1e-5
         }
 
