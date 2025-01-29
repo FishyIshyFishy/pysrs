@@ -1,26 +1,60 @@
 import numpy as np
-import pyvisa as pv
-import serial
 from zaber_motion import Units
 from zaber_motion.ascii import Connection
 
-'''
-DONE: connection to zaber movable delay stage  X-LSM050A
-'''
+class Zaber:
+    def __init__(self, config=None, **kwargs):
+        defaults = {
+            'serial': 'COM3', 
+            'num_shifts': 200,  
+            'shift_size': 10,  # um
+            'shift_offset': 10,  # mm
+        }
+
+        if config:
+            defaults.update(config)
+        defaults.update(kwargs)
+
+        for key, val in defaults.items():
+            setattr(self, key, val)
+
+    def scan_range(self):
+        with Connection.open_serial_port(self.serial) as connection:
+            connection.enable_alerts()
+            devices = connection.detect_devices()
+
+            if len(devices) == 0:
+                print("No Zaber devices found.")
+                return
+            
+            device = devices[0]
+            axis = device.get_axis(1)
+
+            print(f"Connected to Zaber device: {device}")
+
+            if not axis.is_homed():
+                print("Homing the stage...")
+                axis.home()
+
+            start_pos = self.shift_offset
+            step_size = self.shift_size
+            num_steps = self.num_shifts
+
+            print(f"Starting scan at {start_pos} mm, moving {num_steps} steps with {step_size} mm per step.")
+
+            for i in range(num_steps):
+                pos = start_pos + i * step_size
+                print(f"Moving to {pos} mm")
+                axis.move_absolute(pos, Units.LENGTH_MILLIMETRES)
+                axis.wait_until_idle()
 
 
-with Connection.open_serial_port("COM3") as connection:
-    connection.enable_alerts()
-    device_list = connection.detect_devices()
-    print(f'Found {len(device_list)} devices')
-    if len(device_list) > 0:
-        device = device_list[0]
-        print(f"Device detected: {device}")
-        axis = device.get_axis(1)
-        if not axis.is_homed():
-            axis.home()
-        axis.move_absolute(10, Units.LENGTH_MILLIMETRES)
-        axis.move_relative(5, Units.LENGTH_MILLIMETRES)
-    else:
-        print("No devices detected.")
-    
+if __name__ == '__main__':
+    config = {
+        'serial': 'COM3', 
+        'num_shifts': 200,  
+        'shift_size': 10,  # um
+        'shift_offset': 10,  # mm
+    }
+    stage = Zaber(config)
+    stage.scan_range()
