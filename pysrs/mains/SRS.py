@@ -4,7 +4,7 @@ import threading
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
-from pysrs.mains.run_image_2d import lockin_scan
+from pysrs.runners.run_image_2d import lockin_scan
 from pysrs.instruments.galvo_funcs import Galvo
 import os
 import sys
