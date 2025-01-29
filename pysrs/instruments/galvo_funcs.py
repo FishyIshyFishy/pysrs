@@ -10,40 +10,39 @@ class Galvo:
         defaults = {
             "numsteps_x": 400,  
             "numsteps_y": 400,  
-            "numsteps_extra": 100,  # optional, for stability
+            "numsteps_extra": 100,  # Extra padding for stability
             "offset_x": -1.2,  
             "offset_y": 1.5, 
-            "dwell": 10,  # per (x,y) combo, in us
+            "dwell": 10e-6,  # in microseconds
             "amp_x": 0.5, 
             "amp_y": 0.5,  
-            "rate": 10000,  # sampling rate
-            "device": 'Dev1',  # nidaq device name
-            "ao_chans": ['ao1', 'ao0']  # for galvos
+            "rate": 10000,  # Sampling rate
+            "device": 'Dev1',  # NI-DAQ device name
+            "ao_chans": ['ao1', 'ao0']  # Analog output channels for galvos
         }
 
-        try:
-            if config:
-                defaults.update(config)
-        except Exception as e:
-            print(f"Error - must pass a config to Galvo class: {e}")
-
+        if config:
+            defaults.update(config)
         defaults.update(kwargs)
+        
         for key, val in defaults.items():
             setattr(self, key, val)
 
         self.pixel_samples = max(1, int(self.dwell * self.rate))
-        self.total_samples = self.numsteps_x * self.numsteps_y * self.pixel_samples
+        
+        self.total_x = self.numsteps_x + 2 * self.numsteps_extra
+        self.total_y = self.numsteps_y + 2 * self.numsteps_extra
+        self.total_samples = self.total_x * self.total_y * self.pixel_samples
 
         self.waveform = self.gen_raster()
 
     def gen_raster(self):
-        self.dwell *= 1e-6  
-        total_rowsamples = self.pixel_samples * self.numsteps_x
+        total_rowsamples = self.pixel_samples * self.total_x
 
-        x_row = np.linspace(-self.amp_x, self.amp_x, self.numsteps_x, endpoint=False)
-        x_waveform = np.tile(np.repeat(x_row, self.pixel_samples), self.numsteps_y)
+        x_row = np.linspace(-self.amp_x, self.amp_x, self.total_x, endpoint=False)
+        x_waveform = np.tile(np.repeat(x_row, self.pixel_samples), self.total_y)
 
-        y_steps = np.linspace(self.amp_y, -self.amp_y, self.numsteps_y)  
+        y_steps = np.linspace(self.amp_y, -self.amp_y, self.total_y)
         y_waveform = np.repeat(y_steps, total_rowsamples)
 
         if len(x_waveform) < self.total_samples:
@@ -53,11 +52,10 @@ class Galvo:
 
         return np.vstack([x_waveform, y_waveform])
 
-
     def do_raster(self):
         if not hasattr(self, 'waveform'): 
-            self.waweform = self.gen_raster()
-        print(f'waveform generated')
+            self.waveform = self.gen_raster()
+        print(f'Waveform generated')
 
         with nidaqmx.Task() as task:
             for chan in self.ao_chans:
@@ -69,10 +67,10 @@ class Galvo:
                 samps_per_chan=self.waveform.shape[1]
             )
 
-            print(f'raster scanning with channels {self.ao_chans}')
+            print(f'Raster scanning with channels {self.ao_chans}')
             task.write(self.waveform, auto_start=True)
             task.wait_until_done()
-            print('raster complete')
+            print('Raster complete')
 
 
 
@@ -85,7 +83,7 @@ if __name__ == '__main__':
         "rate": 1e5, # hz
         "numsteps_x": 100,  
         "numsteps_y": 100 , # must be a integer divisor of numsteps_x for a true raster
-        "dwell": 50, # us
+        "dwell": 50e-6, # us
     }
 
     galvo = Galvo(config)

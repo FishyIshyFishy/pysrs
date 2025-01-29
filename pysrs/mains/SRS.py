@@ -35,6 +35,7 @@ class GUI:
             'rate': 1e5,
             'numsteps_x': 100,
             'numsteps_y': 100,
+            'numsteps_extra': 100,
             'dwell': 1e-5
         }
 
@@ -124,13 +125,13 @@ class GUI:
             ('Device', 'device'),
             ('Galvo AO Chans', 'ao_chans'),
             ('Lockin AI Chan', 'ai_chan'),
-            ('Rate (Hz)', 'rate'),
+            ('Sampling Rate (Hz)', 'rate'),
             ('Amp X', 'amp_x'),
             ('Amp Y', 'amp_y'),
             ('Steps X', 'numsteps_x'),
             ('Steps Y', 'numsteps_y'),
-            ('Extra pixels', 'numsteps_extra'),
-            ('Dwell Time (s)', 'dwell')  
+            ('Padding steps', 'numsteps_extra'),
+            ('Dwell Time (us)', 'dwell')  
         ]
 
         for col, (label, key) in enumerate(param_groups):
@@ -139,6 +140,20 @@ class GUI:
             entry.insert(0, str(self.config[key]) if key != 'ao_chans' else ','.join(self.config[key]))
             entry.grid(row=1, column=col, padx=5, pady=3)
             self.param_entries[key] = entry
+
+        info_button = ttk.Label(param_frame, text='ⓘ', foreground='blue', cursor='hand2', font=('Calibri', 16, 'bold'))
+        info_button.grid(row=0, column=len(param_groups), sticky='w', padx=5, pady=3)
+        galvo_tooltip_text = (
+            "• Device: NI-DAQ device identifier (e.g., 'Dev1')\n"
+            "• Galvo AO Chans: Analog output channels controlling galvos (e.g., 'ao1,ao0')\n"
+            "• Lockin AI Chan: Analog input channel for lock-in amplifier (e.g., 'ai1')\n"
+            "• Sampling Rate (Hz): Rate at which voltage signals are sampled (e.g., 100000 Hz)\n"
+            "• Amp X / Amp Y: Voltage amplitudes for galvo movement (e.g., 0.5 V)\n"
+            "• Steps X / Steps Y: Number of discrete points scanned in X and Y directions\n"
+            "• Padding steps: Extra steps scanned outside the main region to stabilize the system\n"
+            "• Dwell Time (us): Time spent at each (X, Y) position in microseconds"
+        )
+        Tooltip(info_button, galvo_tooltip_text)
 
         display_frame = ttk.LabelFrame(self.root, text='Data Display', padding=(15, 15))
         display_frame.grid(row=2, column=0, padx=10, pady=10, sticky='nsew')  
