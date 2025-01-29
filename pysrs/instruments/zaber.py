@@ -46,9 +46,9 @@ class ZaberStage:
 if __name__ == '__main__':
     config = {
         'serial': 'COM3', 
-        'num_shifts': 200,  
-        'shift_size': 10,  # um
-        'shift_offset': 10,  # mm
+        'num_shifts': 3,  
+        'shift_size': 5,  # mm
+        'shift_offset': 20,  # mm
     }
     stage = ZaberStage(config)
     stage.scan_range()
