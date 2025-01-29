@@ -10,7 +10,7 @@ class Galvo:
         defaults = {
             "numsteps_x": 400,  
             "numsteps_y": 400,  
-            "extra_steps": 100,  # optional, for stability
+            "numsteps_extra": 100,  # optional, for stability
             "offset_x": -1.2,  
             "offset_y": 1.5, 
             "dwell": 10,  # per (x,y) combo, in us

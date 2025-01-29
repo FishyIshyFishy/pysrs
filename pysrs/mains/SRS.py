@@ -129,6 +129,7 @@ class GUI:
             ('Amp Y', 'amp_y'),
             ('Steps X', 'numsteps_x'),
             ('Steps Y', 'numsteps_y'),
+            ('Extra pixels', 'numsteps_extra'),
             ('Dwell Time (s)', 'dwell')  
         ]
 
@@ -145,7 +146,7 @@ class GUI:
         display_frame.grid_rowconfigure(0, weight=1)
         display_frame.grid_columnconfigure(0, weight=1)
 
-        self.fig, self.ax = plt.subplots(figsize=(10, 10))  # **Increased size from (10, 10) to (12, 12)**
+        self.fig, self.ax = plt.subplots(figsize=(10, 10))  
         self.canvas = FigureCanvasTkAgg(self.fig, master=display_frame)
         self.canvas_widget = self.canvas.get_tk_widget()
         self.canvas_widget.grid(row=0, column=0, padx=10, pady=10)
@@ -164,6 +165,7 @@ class GUI:
         state = 'normal' if self.save_acquisitions.get() else 'disabled'
         self.save_num_entry.configure(state=state)
         self.save_file_entry.configure(state=state)
+        self.file_path_frame.winfo_children()[1].configure(state=state)  
 
     def start_scan(self):
         if self.running:

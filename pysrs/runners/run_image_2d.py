@@ -28,7 +28,7 @@ def lockin_scan(lockin_chan: str, galvo: Galvo) -> np.ndarray: # lockin_chan mus
 
         # start tasks
         tic = time.time()
-        print('starting scan')
+        # print('starting scan')
         ao_task.write(galvo.waveform, auto_start=False)
         ai_task.start() # start ai first to avoid losing initial samples
         ao_task.start()
@@ -36,7 +36,7 @@ def lockin_scan(lockin_chan: str, galvo: Galvo) -> np.ndarray: # lockin_chan mus
         ai_task.wait_until_done(timeout=galvo.total_samples/galvo.rate + 5)
 
         lockin_data = np.array(ai_task.read(number_of_samples_per_channel=galvo.total_samples))
-        print(f'scan complete in {time.time() - tic} seconds')
+        # print(f'scan complete in {time.time() - tic} seconds')
 
     lockin_data = lockin_data.reshape(galvo.numsteps_y, galvo.numsteps_x, galvo.pixel_samples)
     data = np.mean(lockin_data, axis=2)
@@ -67,7 +67,8 @@ if __name__ == '__main__':
         "rate": 1e5, # hz
         "numsteps_x": 100, 
         "numsteps_y": 100, 
-        "dwell": 1e-5 # s
+        "dwell": 1e-5, # s
+        "numsteps_extra": 50
     }
     galvo = Galvo(config)
 
