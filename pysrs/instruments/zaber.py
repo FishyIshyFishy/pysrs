@@ -2,52 +2,46 @@ import numpy as np
 from zaber_motion import Units
 from zaber_motion.ascii import Connection
 
-class Zaber:
-    def __init__(self, config=None, **kwargs):
-        defaults = {
-            'serial': 'COM3', 
-            'num_shifts': 200,  
-            'shift_size': 10,  # um
-            'shift_offset': 10,  # mm
-        }
+class ZaberStage:
+    """Simple object to hold a Zaber and move it in micrometers."""
+    def __init__(self, port='COM3'):
+        self.port = port
+        self.connection = None
+        self.device = None
+        self.axis = None
 
-        if config:
-            defaults.update(config)
-        defaults.update(kwargs)
+    def connect(self):
+        """Connects to the Zaber stage and homes it if needed."""
+        if self.connection is not None:
+            return  # Already connected
+        self.connection = Connection.open_serial_port(self.port)
+        self.connection.enable_alerts()
+        devices = self.connection.detect_devices()
+        if not devices:
+            raise RuntimeError("No Zaber devices found.")
+        self.device = devices[0]
+        self.axis = self.device.get_axis(1)
+        if not self.axis.is_homed():
+            print("Homing the stage...")
+            self.axis.home()
 
-        for key, val in defaults.items():
-            setattr(self, key, val)
+    def move_absolute_um(self, position_um):
+        """
+        Move stage to an absolute position in micrometers.
+        If your stage is in mm or has a different resolution, adapt accordingly.
+        """
+        if self.axis is None:
+            self.connect()
+        # Suppose your stage units are in millimeters:
+        position_mm = position_um * 1e-3
+        self.axis.move_absolute(position_mm, Units.LENGTH_MILLIMETRES)
+        self.axis.wait_until_idle()
 
-    def scan_range(self):
-        with Connection.open_serial_port(self.serial) as connection:
-            connection.enable_alerts()
-            devices = connection.detect_devices()
-
-            if len(devices) == 0:
-                print("No Zaber devices found.")
-                return
-            
-            device = devices[0]
-            axis = device.get_axis(1)
-
-            print(f"Connected to Zaber device: {device}")
-
-            if not axis.is_homed():
-                print("Homing the stage...")
-                axis.home()
-
-            start_pos = self.shift_offset
-            step_size = self.shift_size
-            num_steps = self.num_shifts
-
-            print(f"Starting scan at {start_pos} mm, moving {num_steps} steps with {step_size} mm per step.")
-
-            for i in range(num_steps):
-                pos = start_pos + i * step_size
-                print(f"Moving to {pos} mm")
-                axis.move_absolute(pos, Units.LENGTH_MILLIMETRES)
-                axis.wait_until_idle()
-
+    def disconnect(self):
+        """Close the connection."""
+        if self.connection:
+            self.connection.close()
+            self.connection = None
 
 if __name__ == '__main__':
     config = {
@@ -56,5 +50,5 @@ if __name__ == '__main__':
         'shift_size': 10,  # um
         'shift_offset': 10,  # mm
     }
-    stage = Zaber(config)
+    stage = ZaberStage(config)
     stage.scan_range()
