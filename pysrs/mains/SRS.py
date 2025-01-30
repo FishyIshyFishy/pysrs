@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import os
 import sys
+import time
 from PIL import Image
 from matplotlib.figure import Figure
 from pysrs.instruments.zaber import ZaberStage
@@ -246,7 +247,7 @@ class GUI:
         display_frame.grid_rowconfigure(0, weight=1)
         display_frame.grid_columnconfigure(0, weight=1)
 
-        self.fig, self.ax = plt.subplots(figsize=(10, 10))
+        self.fig, self.ax = plt.subplots(figsize=(14, 14))
         self.canvas = FigureCanvasTkAgg(self.fig, master=display_frame)
         self.canvas_widget = self.canvas.get_tk_widget()
         self.canvas_widget.grid(row=0, column=0, padx=10, pady=10)
@@ -264,12 +265,12 @@ class GUI:
             except ValueError:
                 print("[Single Delay] Invalid float value. Ignoring.")
             except Exception as e:
-                messagebox.showerror("Error moving stage", str(e))
+                messagebox.showerror("Error moving stage, make sure that protocol is ASCII in Zaber Console:", str(e))
 
     def calibrate(self):
         cal_win = tk.Toplevel(self.root)
         cal_win.title("Stage Calibration")
-        cal_win.geometry("600x450")
+        cal_win.geometry("900x600")
 
         config_frame = ttk.Frame(cal_win, padding=10)
         config_frame.pack(side=tk.TOP, fill=tk.X)
@@ -586,7 +587,7 @@ class GUI:
                     -self.config['amp_y'], self.config['amp_y']],
             origin='lower',
             aspect='equal',
-            cmap='viridis'
+            cmap='cool'
         )
         self.ax.set_title('Live Data')
         self.ax.set_xlabel('X Amplitude')
