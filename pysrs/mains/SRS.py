@@ -16,7 +16,7 @@ class GUI:
     def __init__(self, root):
         self.root = root
         self.root.title('Stimulated Raman Coordinator')
-        self.root.geometry('1600x1000')
+        self.root.geometry('1600x1600')
 
         self.root.grid_columnconfigure(0, weight=1)
         self.root.grid_columnconfigure(1, weight=1)
@@ -45,9 +45,9 @@ class GUI:
         self.zaber_stage = ZaberStage(port='COM3')
         self.hyperspectral_enabled = tk.BooleanVar(value=False)
         self.hyper_config = {
-            'start_um': 0.0,
-            'stop_um': 1000.0,
-            'single_um': 500.0
+            'start_um': 80000,
+            'stop_um': 60000,
+            'single_um': 90000
         }
 
         self.colorbar = None
@@ -72,11 +72,11 @@ class GUI:
         control_frame = ttk.LabelFrame(self.root, text='Control Panel', padding=(8, 8))
         control_frame.grid(row=0, column=0, padx=10, pady=5, sticky='nsew')
 
-        self.start_button = ttk.Button(
+        self.continuous_button = ttk.Button(
             control_frame, text='Acquire Continuously',
             command=self.start_scan, style='TButton'
         )
-        self.start_button.grid(row=0, column=0, padx=5, pady=5)
+        self.continuous_button.grid(row=0, column=0, padx=5, pady=5)
 
         self.stop_button = ttk.Button(
             control_frame, text='Stop',
@@ -141,8 +141,6 @@ class GUI:
         browse_button = ttk.Button(self.file_path_frame, text='Browse...',
                                    command=self.browse_save_path, style='TButton')
         browse_button.pack(side=tk.LEFT)
-
-        # self.toggle_save_options()
 
 
 
@@ -334,7 +332,6 @@ class GUI:
 
             positions, intensities = [], []
 
-            import time
             for pos in positions_to_scan:
                 if not cal_running[0]:
                     break
@@ -349,8 +346,6 @@ class GUI:
                 if self.simulation_mode.get():
                     data = self.generate_data()
                 else:
-                    from pysrs.instruments.galvo_funcs import Galvo
-                    from pysrs.runners.run_image_2d import lockin_scan
                     galvo = Galvo(self.config)
                     data = lockin_scan(self.config['device'] + '/' + self.config['ai_chan'], galvo)
 
@@ -390,15 +385,8 @@ class GUI:
             messagebox.showwarning('Warning', 'Scan is already running.')
             return
 
-        if self.save_acquisitions.get():
-            messagebox.showinfo(
-                'Info',
-                'Uncheck "Save Acquisitions" or use "Acquire Single" if you want to save data.'
-            )
-            return
-
         self.running = True
-        self.start_button['state'] = 'disabled'
+        self.continuous_button['state'] = 'disabled'
         self.stop_button['state'] = 'normal'
 
         scan_thread = threading.Thread(target=self.scan, daemon=True)
@@ -406,7 +394,7 @@ class GUI:
 
     def stop_scan(self):
         self.running = False
-        self.start_button['state'] = 'normal'
+        self.continuous_button['state'] = 'normal'
         self.stop_button['state'] = 'disabled'
 
     def acquire_single(self, startup=False):
@@ -533,7 +521,7 @@ class GUI:
             messagebox.showerror('Error', f'Cannot display data: {e}')
         finally:
             self.running = False
-            self.start_button['state'] = 'normal'
+            self.continuous_button['state'] = 'normal'
             self.stop_button['state'] = 'disabled'
 
     def update_config(self):
@@ -649,16 +637,19 @@ class GUI:
         os._exit(0)
 
     def toggle_save_options(self):
-        state = 'normal' if self.save_acquisitions.get() else 'disabled'
-        self.save_num_entry.configure(state=state)
-        self.save_file_entry.configure(state=state)
-        self.file_path_frame.winfo_children()[1].configure(state=state)
-
         if self.save_acquisitions.get():
             self.delay_hyperspec_checkbutton.configure(state='normal')
+            self.save_num_entry.configure(state='normal')
+            self.save_file_entry.configure(state='normal')
+            self.file_path_frame.winfo_children()[1].configure(state='normal')
+            self.continuous_button.configure(state='disabled')
         else:
             self.hyperspectral_enabled.set(False)
             self.delay_hyperspec_checkbutton.configure(state='disabled')
+            self.save_num_entry.configure(state='disabled')
+            self.save_file_entry.configure(state='disabled')
+            self.file_path_frame.winfo_children()[1].configure(state='disabled')
+            self.continuous_button.configure(state='normal')
             self.toggle_hyperspectral_fields()
 
     def toggle_hyperspectral_fields(self):
