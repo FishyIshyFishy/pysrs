@@ -23,8 +23,9 @@ class GUI:
         self.root.grid_columnconfigure(1, weight=1)
         self.root.grid_rowconfigure(2, weight=1)
 
-        self.simulation_mode = tk.BooleanVar(value=False)
+        self.simulation_mode = tk.BooleanVar(value=True)
         self.running = False
+        self.acquiring = False
         self.save_acquisitions = tk.BooleanVar(value=False)
 
         self.root.protocol('WM_DELETE_WINDOW', self.close)
@@ -42,13 +43,12 @@ class GUI:
             'dwell': 1e-5
         }
 
-
         self.zaber_stage = ZaberStage(port='COM3')
         self.hyperspectral_enabled = tk.BooleanVar(value=False)
         self.hyper_config = {
-            'start_um': 80000,
-            'stop_um': 60000,
-            'single_um': 90000
+            'start_um': 20000,
+            'stop_um': 30000,
+            'single_um': 25000
         }
 
         self.colorbar = None
@@ -56,7 +56,7 @@ class GUI:
         self.ax_vslice = None
 
         self.create_widgets()
-        self.acquire_single(startup=True)
+        threading.Thread(target=self.acquire, kwargs={"startup": True}, daemon=True).start() # thread so that UI doesnt lag on startup
 
     def create_widgets(self):
         style = ttk.Style()
@@ -65,11 +65,7 @@ class GUI:
         style.configure('TEntry', font=('Calibri', 16), padding=3)
         style.configure('TCheckbutton', font=('Calibri', 16))
 
-
-
-        ''' 
         ################# CONTROL PANEL #################
-        '''
         control_frame = ttk.LabelFrame(self.root, text='Control Panel', padding=(8, 8))
         control_frame.grid(row=0, column=0, padx=10, pady=5, sticky='nsew')
 
@@ -86,8 +82,9 @@ class GUI:
         self.stop_button.grid(row=0, column=1, padx=5, pady=5)
 
         self.single_button = ttk.Button(
-            control_frame, text='Acquire Single',
-            command=self.acquire_single, style='TButton'
+            control_frame, text='Acquire',
+            command=lambda: threading.Thread(target=self.acquire, daemon=True).start(), # need to thread to stop early
+            style='TButton'
         )
         self.single_button.grid(row=0, column=2, padx=5, pady=5)
 
@@ -106,8 +103,8 @@ class GUI:
         info_button.pack(side=tk.LEFT)
         tooltip_text = (
             '• Press "Acquire Continuously" to continuously update the display.\n'
-            '• Press "Acquire Single" for one image if "Save Acquisitions" is OFF.\n'
-            '• If "Save Acquisitions" is ON, "Acquire Single" will collect multiple frames\n'
+            '• Press "Acquire" for one image if "Save Acquisitions" is OFF.\n'
+            '• If "Save Acquisitions" is ON, "Acquire" will collect the number of specified frames\n'
             '  and save them all to a single multi-page TIFF file.'
         )
         Tooltip(info_button, tooltip_text)
@@ -124,7 +121,7 @@ class GUI:
         frames_frame.grid(row=4, column=1, padx=5, pady=3, sticky='w')
 
         self.save_num_entry = ttk.Entry(frames_frame, width=8, font=('Calibri', 16))
-        self.save_num_entry.insert(0, '10')
+        self.save_num_entry.insert(0, '1')
         self.save_num_entry.pack(side=tk.LEFT, padx=(0, 5))
 
         self.progress_label = ttk.Label(frames_frame, text='(0/0)', font=('Calibri', 16, 'bold'))
@@ -142,12 +139,8 @@ class GUI:
         browse_button = ttk.Button(self.file_path_frame, text='Browse...',
                                    command=self.browse_save_path, style='TButton')
         browse_button.pack(side=tk.LEFT)
-
-
-
-        ''' 
+ 
         ################# DELAY STAGE PANEL #################
-        '''
         delay_stage_frame = ttk.LabelFrame(self.root, text='Delay Stage Settings', padding=(8, 8))
         delay_stage_frame.grid(row=0, column=1, padx=10, pady=5, sticky='nsew')
 
@@ -177,8 +170,14 @@ class GUI:
         self.entry_single_um.insert(0, str(self.hyper_config['single_um']))
         self.entry_single_um.grid(row=3, column=1, padx=5, pady=3, sticky='w')
 
-        self.entry_single_um.bind('<Return>', self.on_single_delay_changed)
-        self.entry_single_um.bind('<FocusOut>', self.on_single_delay_changed)
+        lbl_shifts = ttk.Label(delay_stage_frame, text='Number of Shifts')
+        lbl_shifts.grid(row=4, column=0, sticky='e', padx=5, pady=3)
+        self.entry_numshifts = ttk.Entry(delay_stage_frame, width=10, font=('Calibri', 16))
+        self.entry_numshifts.insert(0, '10')  
+        self.entry_numshifts.grid(row=4, column=1, padx=5, pady=3, sticky='w')
+
+        self.entry_single_um.bind('<Return>', self.single_delay_changed)
+        self.entry_single_um.bind('<FocusOut>', self.single_delay_changed)
 
         calibrate_button = ttk.Button(
             delay_stage_frame,
@@ -186,16 +185,20 @@ class GUI:
             command=self.calibrate,
             style='TButton'
         )
-        calibrate_button.grid(row=4, column=0, columnspan=2, padx=5, pady=10)
+        calibrate_button.grid(row=1, column=2, columnspan=1, padx=5, pady=10)
+
+        movestage_button = ttk.Button(
+            delay_stage_frame,
+            text = 'Move Stage',
+            command = self.force_zaber,
+            style='TButton'
+        )
+        movestage_button.grid(row=3, column=2, columnspan=1, padx=5, pady=10)
 
         self.toggle_hyperspectral_fields()
         self.toggle_save_options()
 
-
-
-        ''' 
         ################# GALVO PANEL #################
-        '''
         param_frame = ttk.LabelFrame(self.root, text='Galvo Parameters', padding=(8, 8))
         param_frame.grid(row=1, column=0, columnspan=2, padx=10, pady=5, sticky='ew')
 
@@ -237,11 +240,7 @@ class GUI:
         )
         Tooltip(info_button, galvo_tooltip_text)
 
-
-
-        ''' 
         ################# DATA PANEL #################
-        '''
         display_frame = ttk.LabelFrame(self.root, text='Data Display', padding=(15, 15))
         display_frame.grid(row=2, column=0, columnspan=2, padx=10, pady=10, sticky='nsew')
         display_frame.grid_rowconfigure(0, weight=1)
@@ -253,20 +252,10 @@ class GUI:
         self.canvas_widget.grid(row=0, column=0, padx=10, pady=10)
 
 
-    
-   
-    def on_single_delay_changed(self, event=None):
-        if not self.hyperspectral_enabled.get():
-            try:
-                new_val = float(self.entry_single_um.get().strip())
-                self.zaber_stage.connect()
-                self.zaber_stage.move_absolute_um(new_val)
-                print(f"[Single Delay] Stage moved to {new_val} µm.")
-            except ValueError:
-                print("[Single Delay] Invalid float value. Ignoring.")
-            except Exception as e:
-                messagebox.showerror("Error moving stage, make sure that protocol is ASCII in Zaber Console:", str(e))
 
+############################################################################################################
+#################################### Zaber Stage  Functions ###############################################
+############################################################################################################
     def calibrate(self):
         cal_win = tk.Toplevel(self.root)
         cal_win.title("Stage Calibration")
@@ -380,8 +369,29 @@ class GUI:
         def stop_cal():
             cal_running[0] = False
 
+    def single_delay_changed(self, event=None):
+        try:
+            val = float(self.entry_single_um.get().strip())
+            self.hyper_config['single_um'] = val  
+        except ValueError:
+            print("[INFO] Invalid single delay value entered. Ignoring.")
 
+    def force_zaber(self):
+        try:
+            move_position = self.hyper_config['single_um'] 
+            self.zaber_stage.connect()
+            self.zaber_stage.move_absolute_um(move_position)
+            print(f"[INFO] Stage moved to {move_position} µm successfully.")
+        except Exception as e:
+            messagebox.showerror("Stage Move Error", f"Error moving stage: {e}")
+
+
+
+############################################################################################################
+####################################### Data Acquisition Functions #########################################
+############################################################################################################
     def start_scan(self):
+        # start continuous acquisition - not used in non-continuous functions
         if self.running:
             messagebox.showwarning('Warning', 'Scan is already running.')
             return
@@ -394,119 +404,15 @@ class GUI:
         scan_thread.start()
 
     def stop_scan(self):
+        # stop acquisitions, either continuous or finite
         self.running = False
+        self.acquiring = False
         self.continuous_button['state'] = 'normal'
         self.stop_button['state'] = 'disabled'
-
-    def acquire_single(self, startup=False):
-        if self.running and not startup:
-            messagebox.showwarning(
-                'Warning',
-                'Stop continuous acquisition first before saving or single acquisitions.'
-            )
-            return
-
-        try:
-            self.update_config()
-
-            if not self.save_acquisitions.get():
-                if self.hyperspectral_enabled.get():
-                    messagebox.showinfo(
-                        "Info",
-                        "Hyperspectral scanning only runs when 'Save Acquisitions' is ON."
-                    )
-                    return
-
-                galvo = Galvo(self.config)
-                if startup or self.simulation_mode.get():
-                    data = self.generate_data()
-                else:
-                    data = lockin_scan(self.config['device'] + '/' + self.config['ai_chan'], galvo)
-                self.display(data)
-
-            else:
-                num_frames_str = self.save_num_entry.get().strip()
-                filename = self.save_file_entry.get().strip()
-
-                if not filename:
-                    messagebox.showerror('Error', 'Please specify a valid TIFF filename.')
-                    return
-
-                try:
-                    num_frames = int(num_frames_str)
-                    if num_frames < 1:
-                        raise ValueError
-                except ValueError:
-                    messagebox.showerror('Error', 'Invalid number of frames.')
-                    return
-
-                images = []
-                self.progress_label.config(text=f'(0/{num_frames})')
-                self.root.update_idletasks()
-
-                if self.hyperspectral_enabled.get():
-                    start_val = float(self.entry_start_um.get().strip())
-                    stop_val = float(self.entry_stop_um.get().strip())
-                    if num_frames == 1:
-                        positions_to_scan = [start_val]
-                    else:
-                        step_size = (stop_val - start_val) / (num_frames - 1)
-                        positions_to_scan = [start_val + i * step_size for i in range(num_frames)]
-                else:
-                    single_val = float(self.entry_single_um.get().strip())
-                    positions_to_scan = [single_val] * num_frames
-
-                try:
-                    self.zaber_stage.connect()
-                except Exception as e:
-                    messagebox.showerror("Zaber Error", str(e))
-                    return
-
-                for i, pos in enumerate(positions_to_scan):
-                    try:
-                        self.zaber_stage.move_absolute_um(pos)
-                    except Exception as e:
-                        messagebox.showerror("Stage Move Error", str(e))
-                        break
-
-                    if self.simulation_mode.get():
-                        data = self.generate_data()
-                    else:
-                        galvo = Galvo(self.config)
-                        data = lockin_scan(self.config['device'] + '/' + self.config['ai_chan'], galvo)
-
-                    self.display(data)
-
-                    data_flipped = np.flipud(data)
-                    arr_norm = (data_flipped - data_flipped.min()) / (data_flipped.max() - data_flipped.min() + 1e-9)
-                    arr_uint8 = (arr_norm * 255).astype(np.uint8)
-                    pil_img = Image.fromarray(arr_uint8)
-                    images.append(pil_img)
-
-                    self.progress_label.config(text=f'({i + 1}/{num_frames})')
-                    self.root.update_idletasks()
-
-                dirpath = os.path.dirname(filename)
-                if dirpath:
-                    os.makedirs(dirpath, exist_ok=True)
-
-                if len(images) > 1:
-                    images[0].save(
-                        filename,
-                        save_all=True,
-                        append_images=images[1:],
-                        format='TIFF'
-                    )
-                else:
-                    images[0].save(filename, format='TIFF')
-
-                messagebox.showinfo('Done', f'Saved {num_frames} frames to {filename}')
-                self.progress_label.config(text=f'(0/{num_frames})')
-
-        except Exception as e:
-            messagebox.showerror('Error', f'Cannot collect/save data: {e}')
-
+        self.single_button['state'] = 'normal'
+    
     def scan(self):
+        # threaded scan function
         try:
             while self.running:
                 self.update_config()
@@ -525,7 +431,196 @@ class GUI:
             self.continuous_button['state'] = 'normal'
             self.stop_button['state'] = 'disabled'
 
+    def acquire(self, startup=False):
+        # main function for when "acquire" button is clicked
+        if self.running and not startup:
+            messagebox.showwarning(
+                'Warning',
+                'Stop continuous acquisition first before saving or single acquisitions.'
+            )
+            return
+
+        self.acquiring = True
+        self.stop_button['state'] = 'normal'  # Enable stop button immediately
+        
+        try:
+            self.update_config()
+
+            if self.hyperspectral_enabled.get():
+                numshifts_str = self.entry_numshifts.get().strip()
+            elif self.save_acquisitions.get():
+                numshifts_str = self.save_num_entry.get().strip()
+                filename = self.save_file_entry.get().strip()
+                if not filename:
+                    messagebox.showerror('Error', 'Please specify a valid TIFF filename.')
+                    return None, None
+            else:
+                numshifts_str = self.save_num_entry.get().strip()
+                filename = None
+
+            try:
+                numshifts = int(numshifts_str)
+                if numshifts < 1:
+                    raise ValueError
+            except ValueError:
+                messagebox.showerror('Error', 'Invalid number of steps.')
+                return
+
+            if not self.hyperspectral_enabled.get():
+                images = self.acquire_multiple(numshifts)
+                if self.save_acquisitions.get():
+                    if images: self.save_images(images, filename)
+
+            elif self.hyperspectral_enabled.get():
+                images = self.acquire_hyperspectral(numshifts)
+                if self.save_acquisitions.get():
+                    if images: self.save_images(images, filename)
+                
+        except Exception as e:
+            messagebox.showerror('Error', f'Cannot collect/save data: {e}')
+        finally:
+            self.acquiring = False  
+            self.stop_button['state'] = 'disabled' 
+
+    def acquire_multiple(self, numshifts):
+        # non-hyperspectral acquisitions done for the number of times specified in entry box
+        numframes = numshifts # nomenclature so i dont get confused
+
+        images = []
+        self.progress_label.config(text=f'(0/{numframes})')
+        self.root.update_idletasks()
+        galvo = Galvo(self.config)
+
+        for i in range(numframes):
+            if not self.acquiring:
+                break
+
+            data = self.generate_data() if self.simulation_mode.get() else lockin_scan(self.config['device'] + '/' + self.config['ai_chan'], galvo)
+            self.display(data)
+            images.append(self.convert(data))
+
+            self.progress_label.config(text=f'({i + 1}/{numframes})')
+            self.root.update_idletasks()
+
+        return images
+
+    def acquire_hyperspectral(self, numshifts):
+        # acquire multiple but now with zaber stage shifting
+        start_val = float(self.entry_start_um.get().strip())
+        stop_val = float(self.entry_stop_um.get().strip())
+        if numshifts == 1:
+            positions =  [start_val]
+        else:
+            step_size = (stop_val - start_val) / (numshifts - 1)
+            positions =  [start_val + i * step_size for i in range(numshifts)]
+
+        try:
+            self.zaber_stage.connect()
+        except Exception as e:
+            messagebox.showerror("Zaber Error", str(e))
+            return None
+
+        images = []
+        self.progress_label.config(text=f'(0/{numshifts})')
+        self.root.update_idletasks()
+
+        for i, pos in enumerate(positions):
+            if not self.acquiring:
+                break
+            try:
+                self.zaber_stage.move_absolute_um(pos)
+            except Exception as e:
+                messagebox.showerror("Stage Move Error", str(e))
+                return None
+
+            galvo = Galvo(self.config)
+            data = self.generate_data() if self.simulation_mode.get() else lockin_scan(self.config['device'] + '/' + self.config['ai_chan'], galvo)
+
+            self.display(data)
+            images.append(self.convert(data))
+
+            self.progress_label.config(text=f'({i + 1}/{numshifts})')
+            self.root.update_idletasks()
+
+        return images
+
+    def save_images(self, images, filename):
+        # save images but do not overwrite
+        dirpath = os.path.dirname(filename)
+        if dirpath:
+            os.makedirs(dirpath, exist_ok=True)
+
+        base, ext = os.path.splitext(filename)
+        counter = 1
+        new_filename = filename  
+
+        while os.path.exists(new_filename): 
+            new_filename = f"{base}_{counter}{ext}"
+            counter += 1
+
+        if len(images) > 1:
+            images[0].save(
+                new_filename,
+                save_all=True,
+                append_images=images[1:],
+                format='TIFF'
+            )
+        else:
+            images[0].save(new_filename, format='TIFF')
+
+        messagebox.showinfo('Done', f'Saved {len(images)} frames to {new_filename}')
+        self.progress_label.config(text=f'(0/{len(images)})')
+
+    def convert(self, data, type=np.uint8):
+        # encapsulation of image logic, can add real time smoothing etc. into here
+        data_flipped = np.flipud(data)
+        arr_norm = (data_flipped - data_flipped.min()) / (data_flipped.max() - data_flipped.min() + 1e-9)
+        arr_typed = (arr_norm * 255).astype(type)
+        return Image.fromarray(arr_typed)
+
+
+
+############################################################################################################
+####################################### Parameter Management Functions #####################################
+############################################################################################################
+    def toggle_save_options(self):
+        # conditions to verify whenever save acquisition checkbox is updated
+        if self.save_acquisitions.get():
+            if self.hyperspectral_enabled.get():
+                self.save_num_entry.configure(state='disabled')
+            else: 
+                self.save_num_entry.configure(state='normal')
+            self.save_file_entry.configure(state='normal')
+            self.file_path_frame.winfo_children()[1].configure(state='normal')
+            self.continuous_button.configure(state='disabled')
+        else:
+            self.save_num_entry.configure(state='disabled')
+            self.save_file_entry.configure(state='disabled')
+            self.file_path_frame.winfo_children()[1].configure(state='disabled')
+            self.continuous_button.configure(state='normal')
+            self.toggle_hyperspectral_fields()
+
+    def toggle_hyperspectral_fields(self):
+        # conditions to verify whenever hyperspectral is checked/unchecked
+        if self.hyperspectral_enabled.get():
+            if self.save_acquisitions.get():
+                self.save_num_entry.configure(state='disabled')
+            self.entry_start_um.config(state='normal')
+            self.entry_stop_um.config(state='normal')
+            self.entry_single_um.config(state='disabled')
+            self.entry_numshifts.config(state='normal')  
+            self.continuous_button.configure(state='disabled')
+        else:
+            if self.save_acquisitions.get():
+                self.save_num_entry.configure(state='normal')
+            self.entry_start_um.config(state='disabled')
+            self.entry_stop_um.config(state='disabled')
+            self.entry_single_um.config(state='normal')
+            self.entry_numshifts.config(state='disabled')  
+            self.continuous_button.configure(state='normal')
+
     def update_config(self):
+        # self explanatory
         for key, entry in self.param_entries.items():
             value = entry.get()
             try:
@@ -540,8 +635,105 @@ class GUI:
                 self.show_feedback(entry)
             except ValueError:
                 messagebox.showerror('Error', f'Invalid value for {key}. Please check your input.')
+    
+    def browse_save_path(self):
+        # boy i sure wonder what this does
+        filepath = filedialog.asksaveasfilename(
+            defaultextension='.tiff',
+            filetypes=[('TIFF files', '*.tiff *.tif'), ('All files', '*.*')],
+            title='Choose a file name to save'
+        )
+        if filepath:
+            self.save_file_entry.delete(0, tk.END)
+            self.save_file_entry.insert(0, filepath)
+
+
+
+############################################################################################################
+####################################### Display Functions ##################################################
+############################################################################################################
+    def display(self, data):
+        # dynamically updating display of image with histogram slices
+        self.data = data  
+        if not hasattr(self, 'slice_x') or not hasattr(self, 'slice_y'):
+            self.slice_x, self.slice_y = data.shape[1] // 2, data.shape[0] // 2  
+
+        self.ax.clear()
+        im = self.ax.imshow(
+            data,
+            extent=[-self.config['amp_x'], self.config['amp_x'],
+                    -self.config['amp_y'], self.config['amp_y']],
+            origin='lower',
+            aspect='equal',
+            cmap='cool'
+        )
+        self.ax.set_title('Live Data')
+        self.ax.set_xlabel('X Amplitude')
+        self.ax.set_ylabel('Y Amplitude')
+
+        self.ax.axvline(x=np.linspace(-self.config['amp_x'], self.config['amp_x'], data.shape[1])[self.slice_x], color='red', linestyle='--')
+        self.ax.axhline(y=np.linspace(-self.config['amp_y'], self.config['amp_y'], data.shape[0])[self.slice_y], color='blue', linestyle='--')
+
+        if hasattr(self, 'colorbar') and self.colorbar is not None:
+            self.colorbar.mappable.set_clim(vmin=data.min(), vmax=data.max())
+            self.colorbar.update_normal(im)
+        else:
+            self.colorbar = self.fig.colorbar(im, ax=self.ax, orientation='vertical', pad=0.1)
+            self.colorbar.set_label('Intensity')
+
+        self.update_slices()
+
+        self.canvas.draw()
+        self.canvas.mpl_connect('button_press_event', self.on_image_click)
+    
+    def on_image_click(self, event):
+        # get the new location for the slices before update_slices()
+        if event.inaxes != self.ax:
+            return 
+
+        x_extent = np.linspace(-self.config['amp_x'], self.config['amp_x'], self.data.shape[1])
+        y_extent = np.linspace(-self.config['amp_y'], self.config['amp_y'], self.data.shape[0])
+
+        self.slice_x = np.argmin(np.abs(x_extent - event.xdata))  
+        self.slice_y = np.argmin(np.abs(y_extent - event.ydata))  
+
+        self.display(self.data)  
+
+    def update_slices(self):
+        # update slices after user changes axes to slice on image
+        x_slice = self.data[self.slice_y, :]
+        y_slice = self.data[:, self.slice_x]
+
+        if hasattr(self, 'ax_hslice') and self.ax_hslice:
+            self.ax_hslice.clear()
+        else:
+            self.ax_hslice = self.fig.add_axes([0.1, 0.83, 0.63, 0.1])  
+        
+        self.ax_hslice.plot(
+            np.linspace(-self.config['amp_x'], self.config['amp_x'], self.data.shape[1]),
+            x_slice,
+            color='blue'
+        )
+        self.ax_hslice.set_title('X-Slice')
+        self.ax_hslice.set_xticks([])
+
+        if hasattr(self, 'ax_vslice') and self.ax_vslice:
+            self.ax_vslice.clear()
+        else:
+            self.ax_vslice = self.fig.add_axes([0.92, 0.1, 0.05, 0.8])  
+        
+        self.ax_vslice.plot(
+            y_slice,
+            np.linspace(-self.config['amp_y'], self.config['amp_y'], self.data.shape[0]),
+            color='red'
+        )
+        self.ax_vslice.set_title('Y-Slice', rotation=-90)
+        self.ax_vslice.set_yticks([])
+
+        self.canvas.draw()
 
     def generate_data(self):
+        # :)
         numsteps_x = self.config['numsteps_x']
         numsteps_y = self.config['numsteps_y']
         data = np.random.uniform(0, 0.1, size=(numsteps_y, numsteps_x))
@@ -567,68 +759,16 @@ class GUI:
                     data[y, x] = 1.0
 
         return data
-    
-    def browse_save_path(self):
-        filepath = filedialog.asksaveasfilename(
-            defaultextension='.tiff',
-            filetypes=[('TIFF files', '*.tiff *.tif'), ('All files', '*.*')],
-            title='Choose a file name to save'
-        )
-        if filepath:
-            self.save_file_entry.delete(0, tk.END)
-            self.save_file_entry.insert(0, filepath)
 
 
-    def display(self, data):
-        self.ax.clear()
-        im = self.ax.imshow(
-            data,
-            extent=[-self.config['amp_x'], self.config['amp_x'],
-                    -self.config['amp_y'], self.config['amp_y']],
-            origin='lower',
-            aspect='equal',
-            cmap='cool'
-        )
-        self.ax.set_title('Live Data')
-        self.ax.set_xlabel('X Amplitude')
-        self.ax.set_ylabel('Y Amplitude')
 
-        if hasattr(self, 'colorbar') and self.colorbar is not None:
-            self.colorbar.mappable.set_clim(vmin=data.min(), vmax=data.max())
-            self.colorbar.update_normal(im)
-        else:
-            self.colorbar = self.fig.colorbar(im, ax=self.ax, orientation='vertical', pad=0.1)
-            self.colorbar.set_label('Intensity')
-
-        mid_y, mid_x = data.shape[0] // 2, data.shape[1] // 2
-        x_slice = data[mid_y, :]
-        y_slice = data[:, mid_x]
-
-        if hasattr(self, 'ax_hslice') and self.ax_hslice:
-            self.ax_hslice.clear()
-        else:
-            self.ax_hslice = self.fig.add_axes([0.1, 0.83, 0.63, 0.1])  # top area
-        self.ax_hslice.plot(
-            np.linspace(-self.config['amp_x'], self.config['amp_x'], data.shape[1]),
-            x_slice,
-            color='blue'
-        )
-        self.ax_hslice.set_title('X-Slice')
-        self.ax_hslice.set_xticks([])
-
-        if hasattr(self, 'ax_vslice') and self.ax_vslice:
-            self.ax_vslice.clear()
-        else:
-            self.ax_vslice = self.fig.add_axes([0.92, 0.1, 0.05, 0.8])  # right side
-        self.ax_vslice.plot(
-            y_slice,
-            np.linspace(-self.config['amp_y'], self.config['amp_y'], data.shape[0]),
-            color='red'
-        )
-        self.ax_vslice.set_title('Y-Slice', rotation=-90)
-        self.ax_vslice.set_yticks([])
-
-        self.canvas.draw()
+############################################################################################################
+####################################### Misc Functions ######################################################
+############################################################################################################    
+    def show_feedback(self, entry):
+        original = entry.cget('background')
+        entry.configure(background='lightgreen')
+        self.root.after(500, lambda: entry.configure(background=original))
 
     def close(self):
         self.running = False
@@ -637,39 +777,10 @@ class GUI:
         self.root.destroy()
         os._exit(0)
 
-    def toggle_save_options(self):
-        if self.save_acquisitions.get():
-            self.delay_hyperspec_checkbutton.configure(state='normal')
-            self.save_num_entry.configure(state='normal')
-            self.save_file_entry.configure(state='normal')
-            self.file_path_frame.winfo_children()[1].configure(state='normal')
-            self.continuous_button.configure(state='disabled')
-        else:
-            self.hyperspectral_enabled.set(False)
-            self.delay_hyperspec_checkbutton.configure(state='disabled')
-            self.save_num_entry.configure(state='disabled')
-            self.save_file_entry.configure(state='disabled')
-            self.file_path_frame.winfo_children()[1].configure(state='disabled')
-            self.continuous_button.configure(state='normal')
-            self.toggle_hyperspectral_fields()
-
-    def toggle_hyperspectral_fields(self):
-        if self.hyperspectral_enabled.get():
-            self.entry_start_um.config(state='normal')
-            self.entry_stop_um.config(state='normal')
-            self.entry_single_um.config(state='disabled')
-        else:
-            self.entry_start_um.config(state='disabled')
-            self.entry_stop_um.config(state='disabled')
-            self.entry_single_um.config(state='normal')
-
-    def show_feedback(self, entry):
-        original = entry.cget('background')
-        entry.configure(background='lightgreen')
-        self.root.after(500, lambda: entry.configure(background=original))
 
 
 class Tooltip:
+    # for the little info things to hover over with descriptions
     def __init__(self, widget, text):
         self.widget = widget
         self.text = text
