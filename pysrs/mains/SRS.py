@@ -190,6 +190,7 @@ class GUI:
         calibrate_button.grid(row=4, column=0, columnspan=2, padx=5, pady=10)
 
         self.toggle_hyperspectral_fields()
+        self.toggle_save_options()
 
 
 
