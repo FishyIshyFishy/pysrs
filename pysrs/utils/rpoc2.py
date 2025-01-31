@@ -50,11 +50,14 @@ class RPOC:
         self.threshold = tk.DoubleVar(value=128)
         self.threshold_slider = tk.Scale(
             self.mask_window, from_=0, to=255, orient=tk.HORIZONTAL, 
-            variable=self.threshold, label='Threshold', command=self.apply_threshold
+            variable=self.threshold, label='Threshold', command=self.apply_threshold,
+            length=400,
+            width=40,
+            sliderlength=20
         )
         self.threshold_slider.pack()
 
-        self.fill_loop_var = tk.BooleanVar()
+        self.fill_loop_var = tk.BooleanVar(value=True)
         self.fill_loop_checkbox = tk.Checkbutton(self.mask_window, text='Fill Loop', variable=self.fill_loop_var)
         self.fill_loop_checkbox.pack()
 
