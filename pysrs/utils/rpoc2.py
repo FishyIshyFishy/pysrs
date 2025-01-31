@@ -10,10 +10,13 @@ class DrawMaskApp:
 
         try:
             if image is not None:
-                self.image = image.convert('L')
+                grayscale = image.convert('L')  # Convert to grayscale first
             else:
-                self.image = Image.open('data/image.jpg').convert('L')
-                self.image = self.image.copy().resize((400, 400))
+                grayscale = Image.open('data/image.jpg').convert('L')
+                grayscale = grayscale.copy().resize((400, 400))
+
+            self.image = Image.merge("RGB", (grayscale, grayscale, grayscale))  
+
         except FileNotFoundError:
             print("Error: Image not found. Make sure 'data/image.jpg' exists.")
             return
@@ -34,20 +37,17 @@ class DrawMaskApp:
         self.mask_window.title('Draw Mask')
         self.mask_window.geometry('600x600')
 
-        # Image displayed on mask canvas
-        self.mask_image = self.image.copy().convert('RGB')
+        # Use the preprocessed grayscale-looking RGB image
+        self.mask_image = self.image.copy()  
         self.tk_mask_image = ImageTk.PhotoImage(self.mask_image)
 
         self.mask_canvas = tk.Canvas(self.mask_window, width=self.mask_image.width, height=self.mask_image.height)
         self.mask_canvas.pack()
         self.mask_image_id = self.mask_canvas.create_image(0, 0, anchor=tk.NW, image=self.tk_mask_image)
 
-        # Binary mask for thresholding
-        self.binary_mask = self.image.copy()
-
-        # Separate mask for drawing
-        self.mask = Image.new('L', self.image.size, 0)
-        self.draw = ImageDraw.Draw(self.mask)
+        # Binary mask for logical processing (0 = background, 255 = masked area)
+        self.binary_mask = Image.new('L', self.image.size, 0)
+        self.draw = ImageDraw.Draw(self.binary_mask)
 
         # Threshold slider
         self.threshold = tk.DoubleVar(value=128)
@@ -77,11 +77,32 @@ class DrawMaskApp:
     def apply_threshold(self, threshold_value):
         """Apply thresholding while preserving user-drawn mask."""
         threshold = int(float(threshold_value))
-        self.binary_mask = self.image.point(lambda p: 255 if p >= threshold else 0)
+        
+        # Extract grayscale from the R channel (since R = G = grayscale)
+        grayscale = self.image.convert('L')  # Keep original grayscale, separate from mask
+        binary_threshold = grayscale.point(lambda p: 255 if p >= threshold else 0)
 
-        # Combine thresholded mask and drawn mask
-        combined_mask = Image.composite(self.mask, self.binary_mask, self.mask)
-        self.tk_mask_image = ImageTk.PhotoImage(combined_mask)
+        # Preserve red strokes by blending threshold with user-drawn mask
+        thresholded_rgb = Image.merge("RGB", (binary_threshold, binary_threshold, binary_threshold))
+        
+        # Retain red pixels from mask_image
+        for x in range(self.mask_image.width):
+            for y in range(self.mask_image.height):
+                r, g, b = self.mask_image.getpixel((x, y))
+                
+                if r > g and r > b:  # Check if it's red
+                    thresholded_rgb.putpixel((x, y), (255, 0, 0))  # Keep red pixels
+
+        # Update displayed image while preserving user strokes
+        self.tk_mask_image = ImageTk.PhotoImage(thresholded_rgb)
+        self.mask_canvas.itemconfig(self.mask_image_id, image=self.tk_mask_image)
+
+        # Update mask_image to store persistent drawn strokes
+        self.mask_image = thresholded_rgb.copy()
+
+        
+        # Update the displayed mask
+        self.tk_mask_image = ImageTk.PhotoImage(thresholded_rgb)
         self.mask_canvas.itemconfig(self.mask_image_id, image=self.tk_mask_image)
 
     def start_drawing(self, event):
@@ -91,39 +112,40 @@ class DrawMaskApp:
 
     def draw_mask(self, event):
         if self.drawing:
-            self.draw.line([self.last_x, self.last_y, event.x, event.y], fill=255, width=2)  # Keeps grayscale mask logic
-            draw_display = ImageDraw.Draw(self.mask_image)  # Draw red on display image
-            draw_display.line([self.last_x, self.last_y, event.x, event.y], fill='red', width=2)  # Draw red
+            # Draw on the binary mask for logical processing
+            self.draw.line([self.last_x, self.last_y, event.x, event.y], fill=255, width=2)  
 
-            # Update the displayed mask by merging drawn and thresholded mask
-            combined_mask = Image.composite(self.mask, self.binary_mask, self.mask)
-            self.tk_mask_image = ImageTk.PhotoImage(combined_mask)
-            self.mask_canvas.itemconfig(self.mask_image_id, image=self.tk_mask_image)
+            # Draw red on the mask image
+            draw_display = ImageDraw.Draw(self.mask_image)
+            draw_display.line([self.last_x, self.last_y, event.x, event.y], fill=(255, 0, 0), width=2)
+
+            # Reapply thresholding dynamically while keeping red pixels
+            self.apply_threshold(self.threshold.get())
 
             self.last_x, self.last_y = event.x, event.y
             self.points.append((self.last_x, self.last_y))
 
+
     def stop_drawing(self, event):
         self.drawing = False
         if len(self.points) > 2:
-            self.draw.line([self.points[-1], self.points[0]], fill=255, width=2)  # Keeps grayscale mask logic
+            self.draw.line([self.points[-1], self.points[0]], fill=255, width=2)  # Binary mask
+
+            # Draw red on the displayed image
             draw_display = ImageDraw.Draw(self.mask_image)
-            draw_display.line([self.points[-1], self.points[0]], fill='red', width=2)  # Draw red
+            draw_display.line([self.points[-1], self.points[0]], fill=(255, 0, 0), width=2)
 
             if self.fill_loop_var.get():
-                self.draw.polygon(self.points, outline=255, fill=255)  # Keeps grayscale logic
-                draw_display.polygon(self.points, outline=(255, 0, 0), fill='red')  # Draw red
+                self.draw.polygon(self.points, outline=255, fill=255)  # Binary mask
+                draw_display.polygon(self.points, outline=(255, 0, 0), fill=(255, 0, 0))  # Draw red
 
-            # Update display after completing drawing
-            combined_mask = Image.composite(self.mask, self.binary_mask, self.mask)
-            self.tk_mask_image = ImageTk.PhotoImage(combined_mask)
-            self.mask_canvas.itemconfig(self.mask_image_id, image=self.tk_mask_image)
+            # **Preserve mask before threshold update**
+            self.apply_threshold(self.threshold.get())
 
     def save_mask(self):
         mask_path = filedialog.asksaveasfilename(defaultextension='.png', filetypes=[('PNG files', '*.png')])
         if mask_path:
-            combined_mask = Image.composite(self.mask, self.binary_mask, self.mask)
-            combined_mask.save(mask_path)
+            self.binary_mask.save(mask_path)
 
 if __name__ == '__main__':
     root = tk.Tk()

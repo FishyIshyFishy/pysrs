@@ -51,6 +51,8 @@ class GUI:
             'single_um': 25000
         }
 
+        self.rpoc_enabled = tk.BooleanVar(value=False)
+
         self.colorbar = None
         self.ax_hslice = None
         self.ax_vslice = None
@@ -144,12 +146,7 @@ class GUI:
         delay_stage_frame = ttk.LabelFrame(self.root, text='Delay Stage Settings', padding=(8, 8))
         delay_stage_frame.grid(row=0, column=1, padx=10, pady=5, sticky='nsew')
 
-        self.delay_hyperspec_checkbutton = ttk.Checkbutton(
-            delay_stage_frame,
-            text='Enable Hyperspectral Scanning',
-            variable=self.hyperspectral_enabled,
-            command=self.toggle_hyperspectral_fields
-        )
+        self.delay_hyperspec_checkbutton = ttk.Checkbutton(delay_stage_frame, text='Enable Hyperspectral Scanning', variable=self.hyperspectral_enabled, command=self.toggle_hyperspectral_fields)
         self.delay_hyperspec_checkbutton.grid(row=0, column=0, columnspan=2, padx=5, pady=5, sticky='w')
 
         lbl_start = ttk.Label(delay_stage_frame, text='Start (µm)')
@@ -179,24 +176,27 @@ class GUI:
         self.entry_single_um.bind('<Return>', self.single_delay_changed)
         self.entry_single_um.bind('<FocusOut>', self.single_delay_changed)
 
-        calibrate_button = ttk.Button(
-            delay_stage_frame,
-            text='Calibrate',
-            command=self.calibrate,
-            style='TButton'
-        )
+        calibrate_button = ttk.Button(delay_stage_frame, text='Calibrate', command=self.calibrate, style='TButton')
         calibrate_button.grid(row=1, column=2, columnspan=1, padx=5, pady=10)
 
-        movestage_button = ttk.Button(
-            delay_stage_frame,
-            text = 'Move Stage',
-            command = self.force_zaber,
-            style='TButton'
-        )
+        movestage_button = ttk.Button(delay_stage_frame, text = 'Move Stage', command = self.force_zaber, style='TButton')
         movestage_button.grid(row=3, column=2, columnspan=1, padx=5, pady=10)
 
         self.toggle_hyperspectral_fields()
         self.toggle_save_options()
+
+        ################# RPOC PANEL #################
+        rpoc_frame = ttk.LabelFrame(self.root, text='RPOC', padding=(8,8))
+        rpoc_frame.grid(row=0, column=2, padx=10, pady=5, sticky='nsew')
+
+        self.rpoc_checkbutton = ttk.Checkbutton(rpoc_frame, text='Enable RPOC', variable=self.rpoc_enabled, command=self.toggle_rpoc_fields)
+        self.rpoc_checkbutton.grid(row=0, column=0)
+
+        newmask_button = ttk.Button(rpoc_frame, text='Create New Mask', command=self.masker, style='TButton')
+        newmask_button.grid(row=2, column=0, columnspan=1, padx=5, pady=10)
+
+        loadmask_button = ttk.Button(rpoc_frame, text='Load Saved Mask', command=self.update_mask, style='TButton')
+        loadmask_button.grid(row=1, column=0, columnspan=1, padx=5, pady=10)
 
         ################# GALVO PANEL #################
         param_frame = ttk.LabelFrame(self.root, text='Galvo Parameters', padding=(8, 8))
@@ -386,6 +386,15 @@ class GUI:
             messagebox.showerror("Stage Move Error", f"Error moving stage: {e}")
 
 
+
+############################################################################################################
+########################################### RPOC Functions #################################################
+############################################################################################################
+    def masker(self):
+        print('mask successfully called')
+
+    def update_mask(self):
+        print('update mask successfully called')
 
 ############################################################################################################
 ####################################### Data Acquisition Functions #########################################
