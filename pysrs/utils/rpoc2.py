@@ -1,6 +1,7 @@
 import tkinter as tk
 from tkinter import filedialog
 from PIL import Image, ImageTk, ImageDraw
+import numpy as np
 
 class RPOC:
     def __init__(self, root, image=None):
@@ -8,8 +9,12 @@ class RPOC:
         self.root.title('rpoc testing')
         self.root.geometry('600x600')
 
+
         try:
             if image is not None:
+                if isinstance(image, np.ndarray):
+                    image = 255*image/np.max(image)
+                    image = Image.fromarray(image)
                 grayscale = image.convert('L')  # Convert to grayscale first
             else:
                 grayscale = Image.open('data/image.jpg').convert('L')

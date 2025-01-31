@@ -12,6 +12,7 @@ from matplotlib.figure import Figure
 from pysrs.instruments.zaber import ZaberStage
 from pysrs.instruments.galvo_funcs import Galvo
 from pysrs.runners.run_image_2d import lockin_scan
+from pysrs.utils.rpoc2 import RPOC
 
 class GUI:
     def __init__(self, root):
@@ -192,7 +193,7 @@ class GUI:
         self.rpoc_checkbutton = ttk.Checkbutton(rpoc_frame, text='Enable RPOC', variable=self.rpoc_enabled, command=self.toggle_rpoc_fields)
         self.rpoc_checkbutton.grid(row=0, column=0)
 
-        newmask_button = ttk.Button(rpoc_frame, text='Create New Mask', command=self.masker, style='TButton')
+        newmask_button = ttk.Button(rpoc_frame, text='Create New Mask', command=self.create_mask, style='TButton')
         newmask_button.grid(row=2, column=0, columnspan=1, padx=5, pady=10)
 
         loadmask_button = ttk.Button(rpoc_frame, text='Load Saved Mask', command=self.update_mask, style='TButton')
@@ -200,7 +201,7 @@ class GUI:
 
         ################# GALVO PANEL #################
         param_frame = ttk.LabelFrame(self.root, text='Galvo Parameters', padding=(8, 8))
-        param_frame.grid(row=1, column=0, columnspan=2, padx=10, pady=5, sticky='ew')
+        param_frame.grid(row=1, column=0, columnspan=4, padx=10, pady=5, sticky='ew')
 
         self.param_entries = {}
         param_groups = [
@@ -242,7 +243,7 @@ class GUI:
 
         ################# DATA PANEL #################
         display_frame = ttk.LabelFrame(self.root, text='Data Display', padding=(15, 15))
-        display_frame.grid(row=2, column=0, columnspan=2, padx=10, pady=10, sticky='nsew')
+        display_frame.grid(row=2, column=0, columnspan=4, padx=10, pady=10, sticky='nsew')
         display_frame.grid_rowconfigure(0, weight=1)
         display_frame.grid_columnconfigure(0, weight=1)
 
@@ -390,8 +391,12 @@ class GUI:
 ############################################################################################################
 ########################################### RPOC Functions #################################################
 ############################################################################################################
-    def masker(self):
-        print('mask successfully called')
+    def create_mask(self):
+        # Open a new window for the RPOC mask editor
+        mask_window = tk.Toplevel(self.root)
+        mask_window.title('RPOC Mask Editor')
+        # Instantiate the RPOC class with the new Toplevel window
+        rpoc_app = RPOC(mask_window, image=self.data)
 
     def update_mask(self):
         print('update mask successfully called')
@@ -634,6 +639,15 @@ class GUI:
             self.entry_single_um.config(state='normal')
             self.entry_numshifts.config(state='disabled')  
             self.continuous_button.configure(state='normal')
+
+    def toggle_rpoc_fields(self):
+        parent = self.rpoc_checkbutton.winfo_parent()
+        parent = self.rpoc_checkbutton.nametowidget(parent)
+
+        state = tk.NORMAL if self.rpoc_enabled.get() else tk.DISABLED
+        for widget in parent.winfo_children():
+            if widget != self.rpoc_checkbutton:
+                widget.configure(state=state)
 
     def update_config(self):
         # self explanatory
