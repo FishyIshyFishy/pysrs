@@ -2,10 +2,10 @@ import tkinter as tk
 from tkinter import filedialog
 from PIL import Image, ImageTk, ImageDraw
 
-class DrawMaskApp:
+class RPOC:
     def __init__(self, root, image=None):
         self.root = root
-        self.root.title('Draw Mask')
+        self.root.title('rpoc testing')
         self.root.geometry('600x600')
 
         try:
@@ -37,7 +37,6 @@ class DrawMaskApp:
         self.mask_window.title('Draw Mask')
         self.mask_window.geometry('600x600')
 
-        # Use the preprocessed grayscale-looking RGB image
         self.mask_image = self.image.copy()  
         self.tk_mask_image = ImageTk.PhotoImage(self.mask_image)
 
@@ -45,11 +44,9 @@ class DrawMaskApp:
         self.mask_canvas.pack()
         self.mask_image_id = self.mask_canvas.create_image(0, 0, anchor=tk.NW, image=self.tk_mask_image)
 
-        # Binary mask for logical processing (0 = background, 255 = masked area)
         self.binary_mask = Image.new('L', self.image.size, 0)
         self.draw = ImageDraw.Draw(self.binary_mask)
 
-        # Threshold slider
         self.threshold = tk.DoubleVar(value=128)
         self.threshold_slider = tk.Scale(
             self.mask_window, from_=0, to=255, orient=tk.HORIZONTAL, 
@@ -57,51 +54,40 @@ class DrawMaskApp:
         )
         self.threshold_slider.pack()
 
-        # Fill loop checkbox
         self.fill_loop_var = tk.BooleanVar()
         self.fill_loop_checkbox = tk.Checkbutton(self.mask_window, text='Fill Loop', variable=self.fill_loop_var)
         self.fill_loop_checkbox.pack()
 
-        # Save mask button
+
         self.save_mask_button = tk.Button(self.mask_window, text='Save Mask', command=self.save_mask)
         self.save_mask_button.pack()
 
-        # Event bindings for drawing
         self.mask_canvas.bind('<ButtonPress-1>', self.start_drawing)
         self.mask_canvas.bind('<B1-Motion>', self.draw_mask)
         self.mask_canvas.bind('<ButtonRelease-1>', self.stop_drawing)
 
-        # Apply the initial threshold
         self.apply_threshold(self.threshold.get())
 
     def apply_threshold(self, threshold_value):
-        """Apply thresholding while preserving user-drawn mask."""
         threshold = int(float(threshold_value))
         
-        # Extract grayscale from the R channel (since R = G = grayscale)
-        grayscale = self.image.convert('L')  # Keep original grayscale, separate from mask
+        grayscale = self.image.convert('L')  
         binary_threshold = grayscale.point(lambda p: 255 if p >= threshold else 0)
 
-        # Preserve red strokes by blending threshold with user-drawn mask
         thresholded_rgb = Image.merge("RGB", (binary_threshold, binary_threshold, binary_threshold))
         
-        # Retain red pixels from mask_image
         for x in range(self.mask_image.width):
             for y in range(self.mask_image.height):
                 r, g, b = self.mask_image.getpixel((x, y))
                 
-                if r > g and r > b:  # Check if it's red
-                    thresholded_rgb.putpixel((x, y), (255, 0, 0))  # Keep red pixels
+                if r > g and r > b:  
+                    thresholded_rgb.putpixel((x, y), (255, 0, 0))  
 
-        # Update displayed image while preserving user strokes
         self.tk_mask_image = ImageTk.PhotoImage(thresholded_rgb)
         self.mask_canvas.itemconfig(self.mask_image_id, image=self.tk_mask_image)
 
-        # Update mask_image to store persistent drawn strokes
         self.mask_image = thresholded_rgb.copy()
 
-        
-        # Update the displayed mask
         self.tk_mask_image = ImageTk.PhotoImage(thresholded_rgb)
         self.mask_canvas.itemconfig(self.mask_image_id, image=self.tk_mask_image)
 
@@ -112,34 +98,28 @@ class DrawMaskApp:
 
     def draw_mask(self, event):
         if self.drawing:
-            # Draw on the binary mask for logical processing
             self.draw.line([self.last_x, self.last_y, event.x, event.y], fill=255, width=2)  
 
-            # Draw red on the mask image
             draw_display = ImageDraw.Draw(self.mask_image)
             draw_display.line([self.last_x, self.last_y, event.x, event.y], fill=(255, 0, 0), width=2)
 
-            # Reapply thresholding dynamically while keeping red pixels
             self.apply_threshold(self.threshold.get())
 
             self.last_x, self.last_y = event.x, event.y
             self.points.append((self.last_x, self.last_y))
 
-
     def stop_drawing(self, event):
         self.drawing = False
         if len(self.points) > 2:
-            self.draw.line([self.points[-1], self.points[0]], fill=255, width=2)  # Binary mask
+            self.draw.line([self.points[-1], self.points[0]], fill=255, width=2)  
 
-            # Draw red on the displayed image
             draw_display = ImageDraw.Draw(self.mask_image)
             draw_display.line([self.points[-1], self.points[0]], fill=(255, 0, 0), width=2)
 
             if self.fill_loop_var.get():
-                self.draw.polygon(self.points, outline=255, fill=255)  # Binary mask
-                draw_display.polygon(self.points, outline=(255, 0, 0), fill=(255, 0, 0))  # Draw red
+                self.draw.polygon(self.points, outline=255, fill=255) 
+                draw_display.polygon(self.points, outline=(255, 0, 0), fill=(255, 0, 0))  
 
-            # **Preserve mask before threshold update**
             self.apply_threshold(self.threshold.get())
 
     def save_mask(self):
@@ -149,5 +129,5 @@ class DrawMaskApp:
 
 if __name__ == '__main__':
     root = tk.Tk()
-    app = DrawMaskApp(root)
+    app = RPOC(root)
     root.mainloop()
