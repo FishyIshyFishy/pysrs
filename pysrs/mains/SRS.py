@@ -199,6 +199,11 @@ class GUI:
         loadmask_button = ttk.Button(rpoc_frame, text='Load Saved Mask', command=self.update_mask, style='TButton')
         loadmask_button.grid(row=1, column=0, columnspan=1, padx=5, pady=10)
 
+        self.mask_file_path = tk.StringVar(value="No mask loaded")
+        self.mask_status_label = ttk.Label(rpoc_frame, textvariable=self.mask_file_path, 
+                                           relief="solid", padding=(5, 2), width=20)
+        self.mask_status_label.grid(row=1, column=1, padx=5, pady=10, sticky="w")
+
         ################# GALVO PANEL #################
         param_frame = ttk.LabelFrame(self.root, text='Galvo Parameters', padding=(8, 8))
         param_frame.grid(row=1, column=0, columnspan=4, padx=10, pady=5, sticky='ew')
@@ -399,7 +404,15 @@ class GUI:
         rpoc_app = RPOC(mask_window, image=self.data)
 
     def update_mask(self):
-        print('update mask successfully called')
+        """Open file dialog for the user to select a mask file and update GUI."""
+        file_path = filedialog.askopenfilename(title="Select Mask File",
+                                                filetypes=[("Mask Files", "*.mask *.json *.txt"),
+                                                            ("All Files", "*.*")])
+
+        if file_path:  # If a file was selected
+            self.mask_file_path.set(f"Loaded: {file_path.split('/')[-1]}")
+        else:
+            self.mask_file_path.set("No mask loaded")  # Reset if no file selected
 
 ############################################################################################################
 ####################################### Data Acquisition Functions #########################################
