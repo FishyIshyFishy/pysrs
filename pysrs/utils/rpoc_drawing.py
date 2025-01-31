@@ -11,7 +11,7 @@ class DrawMaskApp:
         if image is not None:
             self.image = image.convert('L')
         else:
-            self.image = Image.open('image.jpg').convert('L')
+            self.image = Image.open('data/image.jpg').convert('L')
             self.image = self.image.copy().resize((400, 400))
 
         self.tk_image = ImageTk.PhotoImage(self.image)
@@ -95,7 +95,7 @@ class DrawMaskApp:
     def save_mask(self):
         mask_path = filedialog.asksaveasfilename(defaultextension='.png', filetypes=[('PNG files', '*.png')])
         if mask_path:
-            self.mask.save(mask_path)
+            self.mask.save('data/' + str(mask_path))
 
 if __name__ == '__main__':
     root = tk.Tk()

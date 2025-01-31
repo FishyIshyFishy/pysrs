@@ -3,7 +3,7 @@ from tkinter import ttk, messagebox, filedialog
 import threading
 import numpy as np
 import matplotlib.pyplot as plt
-from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
 import os
 import sys
 import time
@@ -17,7 +17,7 @@ class GUI:
     def __init__(self, root):
         self.root = root
         self.root.title('Stimulated Raman Coordinator')
-        self.root.geometry('1600x1600')
+        self.root.geometry('1200x1200')
 
         self.root.grid_columnconfigure(0, weight=1)
         self.root.grid_columnconfigure(1, weight=1)
@@ -653,42 +653,57 @@ class GUI:
 ####################################### Display Functions ##################################################
 ############################################################################################################
     def display(self, data):
-        # dynamically updating display of image with histogram slices
         self.data = data  
-        if not hasattr(self, 'slice_x') or not hasattr(self, 'slice_y'):
-            self.slice_x, self.slice_y = data.shape[1] // 2, data.shape[0] // 2  
 
-        self.ax.clear()
-        im = self.ax.imshow(
-            data,
-            extent=[-self.config['amp_x'], self.config['amp_x'],
-                    -self.config['amp_y'], self.config['amp_y']],
-            origin='lower',
-            aspect='equal',
-            cmap='cool'
-        )
-        self.ax.set_title('Live Data')
-        self.ax.set_xlabel('X Amplitude')
-        self.ax.set_ylabel('Y Amplitude')
-
-        self.ax.axvline(x=np.linspace(-self.config['amp_x'], self.config['amp_x'], data.shape[1])[self.slice_x], color='red', linestyle='--')
-        self.ax.axhline(y=np.linspace(-self.config['amp_y'], self.config['amp_y'], data.shape[0])[self.slice_y], color='blue', linestyle='--')
-
-        if hasattr(self, 'colorbar') and self.colorbar is not None:
-            self.colorbar.mappable.set_clim(vmin=data.min(), vmax=data.max())
-            self.colorbar.update_normal(im)
-        else:
-            self.colorbar = self.fig.colorbar(im, ax=self.ax, orientation='vertical', pad=0.1)
+        if not hasattr(self, 'img_handle'):
+            self.img_handle = self.ax.imshow(
+                data,
+                extent=[-self.config['amp_x'], self.config['amp_x'],
+                        -self.config['amp_y'], self.config['amp_y']],
+                origin='lower',
+                aspect='equal',
+                cmap='cool'
+            )
+            self.ax.set_title('Live Data')
+            self.ax.set_xlabel('X Amplitude')
+            self.ax.set_ylabel('Y Amplitude')
+            self.colorbar = self.fig.colorbar(self.img_handle, ax=self.ax, orientation='vertical', pad=0.1)
             self.colorbar.set_label('Intensity')
 
-        self.update_slices()
+            self.slice_x = data.shape[1] // 2
+            self.slice_y = data.shape[0] // 2
 
+            x_extent = np.linspace(-self.config['amp_x'], self.config['amp_x'], self.data.shape[1])
+            y_extent = np.linspace(-self.config['amp_y'], self.config['amp_y'], self.data.shape[0])
+
+            self.vline = self.ax.axvline(x=x_extent[self.slice_x], color='red', linestyle='--', lw=2)  # Vertical slice
+            self.hline = self.ax.axhline(y=y_extent[self.slice_y], color='blue', linestyle='--', lw=2)  # Horizontal slice
+
+            # for the toolbar that normally pops up when using basic mpl stuff
+            if not hasattr(self, 'toolbar'):
+                toolbar_frame = ttk.Frame(self.root)
+                toolbar_frame.grid(row=3, column=0, columnspan=2, sticky='ew')
+                self.toolbar = NavigationToolbar2Tk(self.canvas, toolbar_frame)
+                self.toolbar.update()
+                self.toolbar.pack(side=tk.LEFT)
+        else:
+            self.img_handle.set_data(data)
+            self.img_handle.set_clim(vmin=data.min(), vmax=data.max())  
+            self.img_handle.set_extent([-self.config['amp_x'], self.config['amp_x'],
+                                        -self.config['amp_y'], self.config['amp_y']])  
+
+        x_extent = np.linspace(-self.config['amp_x'], self.config['amp_x'], self.data.shape[1])
+        y_extent = np.linspace(-self.config['amp_y'], self.config['amp_y'], self.data.shape[0])
+
+        self.vline.set_xdata([x_extent[self.slice_x]]) 
+        self.hline.set_ydata([y_extent[self.slice_y]]) 
+
+        self.update_slices()
         self.canvas.draw()
         self.canvas.mpl_connect('button_press_event', self.on_image_click)
-    
+
     def on_image_click(self, event):
-        # get the new location for the slices before update_slices()
-        if event.inaxes != self.ax:
+        if str(self.toolbar.mode) in ["zoom rect", "pan/zoom"] or event.inaxes != self.ax: # dont change slices if zooming or panning
             return 
 
         x_extent = np.linspace(-self.config['amp_x'], self.config['amp_x'], self.data.shape[1])
@@ -697,18 +712,18 @@ class GUI:
         self.slice_x = np.argmin(np.abs(x_extent - event.xdata))  
         self.slice_y = np.argmin(np.abs(y_extent - event.ydata))  
 
-        self.display(self.data)  
+        self.display(self.data)
 
     def update_slices(self):
-        # update slices after user changes axes to slice on image
+        # update slices whenever a new image is taken
         x_slice = self.data[self.slice_y, :]
         y_slice = self.data[:, self.slice_x]
 
         if hasattr(self, 'ax_hslice') and self.ax_hslice:
             self.ax_hslice.clear()
         else:
-            self.ax_hslice = self.fig.add_axes([0.1, 0.83, 0.63, 0.1])  
-        
+            self.ax_hslice = self.fig.add_axes([0.11, 0.91, 0.63, 0.05])  
+
         self.ax_hslice.plot(
             np.linspace(-self.config['amp_x'], self.config['amp_x'], self.data.shape[1]),
             x_slice,
@@ -721,7 +736,7 @@ class GUI:
             self.ax_vslice.clear()
         else:
             self.ax_vslice = self.fig.add_axes([0.92, 0.1, 0.05, 0.8])  
-        
+
         self.ax_vslice.plot(
             y_slice,
             np.linspace(-self.config['amp_y'], self.config['amp_y'], self.data.shape[0]),
@@ -731,6 +746,7 @@ class GUI:
         self.ax_vslice.set_yticks([])
 
         self.canvas.draw()
+
 
     def generate_data(self):
         # :)
