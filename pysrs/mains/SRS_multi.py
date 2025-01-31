@@ -14,6 +14,7 @@ from pysrs.instruments.galvo_funcs import Galvo
 from pysrs.runners.run_image_2d import lockin_scan
 from pysrs.utils.rpoc2 import RPOC
 
+
 class GUI:
     def __init__(self, root):
         self.root = root
@@ -31,10 +32,11 @@ class GUI:
 
         self.root.protocol('WM_DELETE_WINDOW', self.close)
 
+
         self.config = {
             'device': 'Dev1',
-            'ao_chans': ['ao1', 'ao0'],
-            'ai_chan': 'ai1',
+            'ao_chans': ['ao1', 'ao0'],      
+            'ai_chan': ['ai1'], # commas identify the number of inputs
             'amp_x': 0.5,
             'amp_y': 0.5,
             'rate': 1e5,
@@ -54,12 +56,14 @@ class GUI:
 
         self.rpoc_enabled = tk.BooleanVar(value=False)
 
-        self.colorbar = None
-        self.ax_hslice = None
-        self.ax_vslice = None
+        self.channel_axes = []
+        self.slice_x = []
+        self.slice_y = []
+        self.data = None 
 
         self.create_widgets()
-        threading.Thread(target=self.acquire, kwargs={"startup": True}, daemon=True).start() # thread so that UI doesnt lag on startup
+
+        threading.Thread(target=self.acquire, kwargs={"startup": True}, daemon=True).start()
 
     def create_widgets(self):
         style = ttk.Style()
@@ -86,7 +90,7 @@ class GUI:
 
         self.single_button = ttk.Button(
             control_frame, text='Acquire',
-            command=lambda: threading.Thread(target=self.acquire, daemon=True).start(), # need to thread to stop early
+            command=lambda: threading.Thread(target=self.acquire, daemon=True).start(),
             style='TButton'
         )
         self.single_button.grid(row=0, column=2, padx=5, pady=5)
@@ -108,7 +112,7 @@ class GUI:
             '• Press "Acquire Continuously" to continuously update the display.\n'
             '• Press "Acquire" for one image if "Save Acquisitions" is OFF.\n'
             '• If "Save Acquisitions" is ON, "Acquire" will collect the number of specified frames\n'
-            '  and save them all to a single multi-page TIFF file.'
+            '  and save them all to a single multi-page TIFF file **per channel**.'
         )
         Tooltip(info_button, tooltip_text)
 
@@ -142,12 +146,15 @@ class GUI:
         browse_button = ttk.Button(self.file_path_frame, text='Browse...',
                                    command=self.browse_save_path, style='TButton')
         browse_button.pack(side=tk.LEFT)
- 
+
         ################# DELAY STAGE PANEL #################
         delay_stage_frame = ttk.LabelFrame(self.root, text='Delay Stage Settings', padding=(8, 8))
         delay_stage_frame.grid(row=0, column=1, padx=10, pady=5, sticky='nsew')
 
-        self.delay_hyperspec_checkbutton = ttk.Checkbutton(delay_stage_frame, text='Enable Hyperspectral Scanning', variable=self.hyperspectral_enabled, command=self.toggle_hyperspectral_fields)
+        self.delay_hyperspec_checkbutton = ttk.Checkbutton(
+            delay_stage_frame, text='Enable Hyperspectral Scanning',
+            variable=self.hyperspectral_enabled, command=self.toggle_hyperspectral_fields
+        )
         self.delay_hyperspec_checkbutton.grid(row=0, column=0, columnspan=2, padx=5, pady=5, sticky='w')
 
         lbl_start = ttk.Label(delay_stage_frame, text='Start (µm)')
@@ -171,7 +178,7 @@ class GUI:
         lbl_shifts = ttk.Label(delay_stage_frame, text='Number of Shifts')
         lbl_shifts.grid(row=4, column=0, sticky='e', padx=5, pady=3)
         self.entry_numshifts = ttk.Entry(delay_stage_frame, width=10, font=('Calibri', 16))
-        self.entry_numshifts.insert(0, '10')  
+        self.entry_numshifts.insert(0, '10')
         self.entry_numshifts.grid(row=4, column=1, padx=5, pady=3, sticky='w')
 
         self.entry_single_um.bind('<Return>', self.single_delay_changed)
@@ -180,14 +187,17 @@ class GUI:
         calibrate_button = ttk.Button(delay_stage_frame, text='Calibrate', command=self.calibrate, style='TButton')
         calibrate_button.grid(row=1, column=2, columnspan=1, padx=5, pady=10)
 
-        movestage_button = ttk.Button(delay_stage_frame, text = 'Move Stage', command = self.force_zaber, style='TButton')
+        movestage_button = ttk.Button(delay_stage_frame, text='Move Stage', command=self.force_zaber, style='TButton')
         movestage_button.grid(row=3, column=2, columnspan=1, padx=5, pady=10)
 
         ################# RPOC PANEL #################
-        rpoc_frame = ttk.LabelFrame(self.root, text='RPOC', padding=(8,8))
+        rpoc_frame = ttk.LabelFrame(self.root, text='RPOC', padding=(8, 8))
         rpoc_frame.grid(row=0, column=2, padx=10, pady=5, sticky='nsew')
 
-        self.rpoc_checkbutton = ttk.Checkbutton(rpoc_frame, text='Enable RPOC', variable=self.rpoc_enabled, command=self.toggle_rpoc_fields)
+        self.rpoc_checkbutton = ttk.Checkbutton(
+            rpoc_frame, text='Enable RPOC', variable=self.rpoc_enabled,
+            command=self.toggle_rpoc_fields
+        )
         self.rpoc_checkbutton.grid(row=0, column=0)
 
         newmask_button = ttk.Button(rpoc_frame, text='Create New Mask', command=self.create_mask, style='TButton')
@@ -197,7 +207,7 @@ class GUI:
         loadmask_button.grid(row=1, column=0, columnspan=1, padx=5, pady=10)
 
         self.mask_file_path = tk.StringVar(value="No mask loaded")
-        self.mask_status_label = ttk.Label(rpoc_frame, textvariable=self.mask_file_path, 
+        self.mask_status_label = ttk.Label(rpoc_frame, textvariable=self.mask_file_path,
                                            relief="solid", padding=(5, 2), width=20)
         self.mask_status_label.grid(row=1, column=1, padx=5, pady=10, sticky="w")
 
@@ -221,10 +231,11 @@ class GUI:
         for col, (label, key) in enumerate(param_groups):
             ttk.Label(param_frame, text=label).grid(row=0, column=col, sticky='w', padx=5, pady=3)
             entry = ttk.Entry(param_frame, width=12, font=('Calibri', 16))
-            if key != 'ao_chans':
+            if key not in ['ao_chans', 'ai_chan']:
                 entry.insert(0, str(self.config[key]))
             else:
-                entry.insert(0, ','.join(self.config[key]))
+                # For multi-channel config fields, join with commas
+                entry.insert(0, ",".join(self.config[key]))
             entry.grid(row=1, column=col, padx=5, pady=3)
             self.param_entries[key] = entry
 
@@ -233,13 +244,13 @@ class GUI:
         info_button.grid(row=0, column=len(param_groups), sticky='w', padx=5, pady=3)
         galvo_tooltip_text = (
             "• Device: NI-DAQ device identifier (e.g., 'Dev1')\n"
-            "• Galvo AO Chans: Analog output channels controlling galvos (e.g., 'ao1,ao0')\n"
-            "• Lockin AI Chan: Analog input channel for lock-in amplifier (e.g., 'ai1')\n"
-            "• Sampling Rate (Hz): Rate at which voltage signals are sampled (e.g., 100000 Hz)\n"
-            "• Amp X / Amp Y: Voltage amplitudes for galvo movement (e.g., 0.5 V)\n"
-            "• Steps X / Steps Y: Number of discrete points scanned in X and Y directions\n"
-            "• Padding steps: Extra steps scanned outside the main region to stabilize the system\n"
-            "• Dwell Time (us): Time spent at each (X, Y) position in microseconds"
+            "• Galvo AO Chans: e.g., 'ao1,ao0'\n"
+            "• Lockin AI Chan: e.g., 'ai1,ai2,ai3' for multiple channels\n"
+            "• Sampling Rate (Hz): e.g., 100000\n"
+            "• Amp X / Amp Y: voltage amplitudes for galvo movement\n"
+            "• Steps X / Steps Y: discrete points in X,Y\n"
+            "• Padding steps: extra steps outside the main region\n"
+            "• Dwell Time (us): time spent at each position in microseconds"
         )
         Tooltip(info_button, galvo_tooltip_text)
 
@@ -249,18 +260,29 @@ class GUI:
         display_frame.grid_rowconfigure(0, weight=1)
         display_frame.grid_columnconfigure(0, weight=1)
 
-        self.fig, self.ax = plt.subplots(figsize=(14, 14))
+        self.fig = Figure(figsize=(14, 14))
         self.canvas = FigureCanvasTkAgg(self.fig, master=display_frame)
         self.canvas_widget = self.canvas.get_tk_widget()
         self.canvas_widget.grid(row=0, column=0, padx=10, pady=10)
+
+        toolbar_frame = ttk.Frame(self.root)
+        toolbar_frame.grid(row=3, column=0, columnspan=2, sticky='ew')
+        self.toolbar = NavigationToolbar2Tk(self.canvas, toolbar_frame)
+        self.toolbar.update()
+        self.toolbar.pack(side=tk.LEFT)
+
+        # dont setup the axes here, go to display() and setup_figure_axes()
+        self.canvas.mpl_connect('button_press_event', self.on_image_click)
 
         self.toggle_hyperspectral_fields()
         self.toggle_save_options()
         self.toggle_rpoc_fields()
 
-############################################################################################################
-#################################### Zaber Stage  Functions ###############################################
-############################################################################################################
+
+
+    ############################################################################################################
+    #################################### Zaber Stage  Functions ################################################
+    ############################################################################################################
     def calibrate(self):
         cal_win = tk.Toplevel(self.root)
         cal_win.title("Stage Calibration")
@@ -339,10 +361,15 @@ class GUI:
                     break
 
                 if self.simulation_mode.get():
-                    data = self.generate_data()
+                    data_list = self.generate_data(len(self.config['ai_chan']))
+                    data = data_list[0]
                 else:
                     galvo = Galvo(self.config)
-                    data = lockin_scan(self.config['device'] + '/' + self.config['ai_chan'], galvo)
+                    data_list = lockin_scan(
+                        [f"{self.config['device']}/{ch}" for ch in self.config['ai_chan']],
+                        galvo
+                    )
+                    data = data_list[0]
 
                 avg_val = data.mean()
                 positions.append(pos)
@@ -377,13 +404,13 @@ class GUI:
     def single_delay_changed(self, event=None):
         try:
             val = float(self.entry_single_um.get().strip())
-            self.hyper_config['single_um'] = val  
+            self.hyper_config['single_um'] = val
         except ValueError:
             print("[INFO] Invalid single delay value entered. Ignoring.")
 
     def force_zaber(self):
         try:
-            move_position = self.hyper_config['single_um'] 
+            move_position = self.hyper_config['single_um']
             self.zaber_stage.connect()
             self.zaber_stage.move_absolute_um(move_position)
             print(f"[INFO] Stage moved to {move_position} µm successfully.")
@@ -392,36 +419,34 @@ class GUI:
 
 
 
-############################################################################################################
-########################################### RPOC Functions #################################################
-############################################################################################################
+    ############################################################################################################
+    ########################################### RPOC Functions #################################################
+    ############################################################################################################
     def create_mask(self):
-        # Open a new window for the RPOC mask editor
         mask_window = tk.Toplevel(self.root)
         mask_window.title('RPOC Mask Editor')
-        # Instantiate the RPOC class with the new Toplevel window
+        # The RPOC class might also need to adapt to multi-channel data
         rpoc_app = RPOC(mask_window, image=self.data)
 
     def update_mask(self):
-        """Open file dialog for the user to select a mask file and update GUI."""
-        file_path = filedialog.askopenfilename(title="Select Mask File",
-                                                filetypes=[("Mask Files", "*.mask *.json *.txt"),
-                                                            ("All Files", "*.*")])
-
-        if file_path:  # If a file was selected
-            self.mask_file_path.set(f"Loaded: {file_path.split('/')[-1]}")
+        file_path = filedialog.askopenfilename(
+            title="Select Mask File",
+            filetypes=[("Mask Files", "*.mask *.json *.txt"), ("All Files", "*.*")]
+        )
+        if file_path:
+            self.mask_file_path.set(f"Loaded: {os.path.basename(file_path)}")
         else:
-            self.mask_file_path.set("No mask loaded")  # Reset if no file selected
+            self.mask_file_path.set("No mask loaded")
 
-############################################################################################################
-####################################### Data Acquisition Functions #########################################
-############################################################################################################
+
+
+    ############################################################################################################
+    ####################################### Data Acquisition Functions #########################################
+    ############################################################################################################
     def start_scan(self):
-        # start continuous acquisition - not used in non-continuous functions
         if self.running:
             messagebox.showwarning('Warning', 'Scan is already running.')
             return
-
         self.running = True
         self.continuous_button['state'] = 'disabled'
         self.stop_button['state'] = 'normal'
@@ -430,26 +455,26 @@ class GUI:
         scan_thread.start()
 
     def stop_scan(self):
-        # stop acquisitions, either continuous or finite
         self.running = False
         self.acquiring = False
         self.continuous_button['state'] = 'normal'
         self.stop_button['state'] = 'disabled'
         self.single_button['state'] = 'normal'
-    
+
     def scan(self):
-        # threaded scan function
         try:
             while self.running:
                 self.update_config()
+
+                channels = [f"{self.config['device']}/{ch}" for ch in self.config['ai_chan']]
                 galvo = Galvo(self.config)
 
                 if self.simulation_mode.get():
-                    data = self.generate_data()
+                    data_list = self.generate_data(len(channels))
                 else:
-                    data = lockin_scan(self.config['device'] + '/' + self.config['ai_chan'], galvo)
+                    data_list = lockin_scan(channels, galvo)
 
-                self.root.after(0, self.display, data)
+                self.root.after(0, self.display, data_list)
         except Exception as e:
             messagebox.showerror('Error', f'Cannot display data: {e}')
         finally:
@@ -458,7 +483,6 @@ class GUI:
             self.stop_button['state'] = 'disabled'
 
     def acquire(self, startup=False):
-        # main function for when "acquire" button is clicked
         if self.running and not startup:
             messagebox.showwarning(
                 'Warning',
@@ -467,8 +491,8 @@ class GUI:
             return
 
         self.acquiring = True
-        self.stop_button['state'] = 'normal'  # Enable stop button immediately
-        
+        self.stop_button['state'] = 'normal'  
+
         try:
             self.update_config()
 
@@ -501,36 +525,42 @@ class GUI:
 
             if not self.hyperspectral_enabled.get():
                 images = self.acquire_multiple(numshifts)
-                if self.save_acquisitions.get():
-                    if images: self.save_images(images, filename)
+                if self.save_acquisitions.get() and images:
+                    self.save_images(images, filename)
 
-            elif self.hyperspectral_enabled.get():
+            else:
                 images = self.acquire_hyperspectral(numshifts)
-                if self.save_acquisitions.get():
-                    if images: self.save_images(images, filename)
-                
+                if self.save_acquisitions.get() and images:
+                    self.save_images(images, filename)
+
         except Exception as e:
             messagebox.showerror('Error', f'Cannot collect/save data: {e}')
         finally:
-            self.acquiring = False  
-            self.stop_button['state'] = 'disabled' 
+            self.acquiring = False
+            self.stop_button['state'] = 'disabled'
 
     def acquire_multiple(self, numshifts):
-        # non-hyperspectral acquisitions done for the number of times specified in entry box
-        numframes = numshifts # nomenclature so i dont get confused
-
+        numframes = numshifts
         images = []
         self.progress_label.config(text=f'(0/{numframes})')
         self.root.update_idletasks()
+
+        channels = [f"{self.config['device']}/{ch}" for ch in self.config['ai_chan']]
         galvo = Galvo(self.config)
 
         for i in range(numframes):
             if not self.acquiring:
                 break
 
-            data = self.generate_data() if self.simulation_mode.get() else lockin_scan(self.config['device'] + '/' + self.config['ai_chan'], galvo)
-            self.root.after(0, self.display, data)
-            images.append(self.convert(data))
+            if self.simulation_mode.get():
+                data_list = self.generate_data(len(channels))
+            else:
+                data_list = lockin_scan(channels, galvo)
+
+            self.root.after(0, self.display, data_list)
+
+            pil_images = [self.convert(d) for d in data_list]
+            images.append(pil_images)
 
             self.progress_label.config(text=f'({i + 1}/{numframes})')
             self.root.update_idletasks()
@@ -538,14 +568,14 @@ class GUI:
         return images
 
     def acquire_hyperspectral(self, numshifts):
-        # acquire multiple but now with zaber stage shifting
         start_val = float(self.entry_start_um.get().strip())
         stop_val = float(self.entry_stop_um.get().strip())
+
         if numshifts == 1:
-            positions =  [start_val]
+            positions = [start_val]
         else:
             step_size = (stop_val - start_val) / (numshifts - 1)
-            positions =  [start_val + i * step_size for i in range(numshifts)]
+            positions = [start_val + i * step_size for i in range(numshifts)]
 
         try:
             self.zaber_stage.connect()
@@ -557,6 +587,8 @@ class GUI:
         self.progress_label.config(text=f'(0/{numshifts})')
         self.root.update_idletasks()
 
+        channels = [f"{self.config['device']}/{ch}" for ch in self.config['ai_chan']]
+
         for i, pos in enumerate(positions):
             if not self.acquiring:
                 break
@@ -567,10 +599,15 @@ class GUI:
                 return None
 
             galvo = Galvo(self.config)
-            data = self.generate_data() if self.simulation_mode.get() else lockin_scan(self.config['device'] + '/' + self.config['ai_chan'], galvo)
+            if self.simulation_mode.get():
+                data_list = self.generate_data(len(channels))
+            else:
+                data_list = lockin_scan(channels, galvo)
 
-            self.root.after(0, self.display, data)
-            images.append(self.convert(data))
+            self.root.after(0, self.display, data_list)
+
+            pil_images = [self.convert(d) for d in data_list]
+            images.append(pil_images)
 
             self.progress_label.config(text=f'({i + 1}/{numshifts})')
             self.root.update_idletasks()
@@ -578,50 +615,59 @@ class GUI:
         return images
 
     def save_images(self, images, filename):
-        # save images but do not overwrite
+        if not images:
+            return
+
         dirpath = os.path.dirname(filename)
         if dirpath:
             os.makedirs(dirpath, exist_ok=True)
 
         base, ext = os.path.splitext(filename)
-        counter = 1
-        new_filename = filename  
+        num_channels = len(images[0])  
 
-        while os.path.exists(new_filename): 
-            new_filename = f"{base}_{counter}{ext}"
-            counter += 1
+        saved_fnames = []
+        for ch_idx in range(num_channels):
+            channel_frames = [frame[ch_idx] for frame in images]
 
-        if len(images) > 1:
-            images[0].save(
-                new_filename,
-                save_all=True,
-                append_images=images[1:],
-                format='TIFF'
-            )
-        else:
-            images[0].save(new_filename, format='TIFF')
+            counter = 1
+            new_filename = f"{base}_chan{ch_idx}{ext}"
 
-        messagebox.showinfo('Done', f'Saved {len(images)} frames to {new_filename}')
+            while os.path.exists(new_filename):
+                new_filename = f"{base}_chan{ch_idx}_{counter}{ext}"
+                counter += 1
+
+            if len(channel_frames) > 1:
+                channel_frames[0].save(
+                    new_filename,
+                    save_all=True,
+                    append_images=channel_frames[1:],
+                    format='TIFF'
+                )
+            else:
+                channel_frames[0].save(new_filename, format='TIFF')
+
+            saved_fnames.append(new_filename)
+
+        msg = "Saved frames:\n" + "\n".join(saved_fnames)
+        messagebox.showinfo('Done', msg)
         self.progress_label.config(text=f'(0/{len(images)})')
 
     def convert(self, data, type=np.uint8):
-        # encapsulation of image logic, can add real time smoothing etc. into here
-        data_flipped = np.flipud(data)
+        data_flipped = np.flipud(data)  # same logic as before
         arr_norm = (data_flipped - data_flipped.min()) / (data_flipped.max() - data_flipped.min() + 1e-9)
         arr_typed = (arr_norm * 255).astype(type)
         return Image.fromarray(arr_typed)
 
 
 
-############################################################################################################
-####################################### Parameter Management Functions #####################################
-############################################################################################################
+    ############################################################################################################
+    ####################################### Parameter Management Functions #####################################
+    ############################################################################################################
     def toggle_save_options(self):
-        # conditions to verify whenever save acquisition checkbox is updated
         if self.save_acquisitions.get():
             if self.hyperspectral_enabled.get():
                 self.save_num_entry.configure(state='disabled')
-            else: 
+            else:
                 self.save_num_entry.configure(state='normal')
             self.save_file_entry.configure(state='normal')
             self.file_path_frame.winfo_children()[1].configure(state='normal')
@@ -634,14 +680,13 @@ class GUI:
             self.toggle_hyperspectral_fields()
 
     def toggle_hyperspectral_fields(self):
-        # conditions to verify whenever hyperspectral is checked/unchecked
         if self.hyperspectral_enabled.get():
             if self.save_acquisitions.get():
                 self.save_num_entry.configure(state='disabled')
             self.entry_start_um.config(state='normal')
             self.entry_stop_um.config(state='normal')
             self.entry_single_um.config(state='disabled')
-            self.entry_numshifts.config(state='normal')  
+            self.entry_numshifts.config(state='normal')
             self.continuous_button.configure(state='disabled')
         else:
             if self.save_acquisitions.get():
@@ -649,7 +694,7 @@ class GUI:
             self.entry_start_um.config(state='disabled')
             self.entry_stop_um.config(state='disabled')
             self.entry_single_um.config(state='normal')
-            self.entry_numshifts.config(state='disabled')  
+            self.entry_numshifts.config(state='disabled')
             self.continuous_button.configure(state='normal')
 
     def toggle_rpoc_fields(self):
@@ -662,13 +707,13 @@ class GUI:
                 widget.configure(state=state)
 
     def update_config(self):
-        # self explanatory
         for key, entry in self.param_entries.items():
             value = entry.get()
             try:
-                if key == 'ao_chans':
-                    self.config[key] = value.split(',')
-                elif key in ['device', 'ai_chan']:
+                if key in ['ao_chans', 'ai_chan']:
+                    channels = [v.strip() for v in value.split(',') if v.strip()]
+                    self.config[key] = channels
+                elif key in ['device']:
                     self.config[key] = value.strip()
                 elif key in ['amp_x', 'amp_y', 'rate', 'dwell']:
                     self.config[key] = float(value)
@@ -677,9 +722,8 @@ class GUI:
                 self.show_feedback(entry)
             except ValueError:
                 messagebox.showerror('Error', f'Invalid value for {key}. Please check your input.')
-    
+
     def browse_save_path(self):
-        # boy i sure wonder what this does
         filepath = filedialog.asksaveasfilename(
             defaultextension='.tiff',
             filetypes=[('TIFF files', '*.tiff *.tif'), ('All files', '*.*')],
@@ -691,139 +735,211 @@ class GUI:
 
 
 
-############################################################################################################
-####################################### Display Functions ##################################################
-############################################################################################################
-    def display(self, data):
-        self.data = data  
+    ############################################################################################################
+    ####################################### Display Setup & Functions ##########################################
+    ############################################################################################################
+    def setup_figure_axes(self, n_channels):
+        self.fig.clear()
+        self.channel_axes = []
+        self.slice_x = [0]*n_channels
+        self.slice_y = [0]*n_channels
 
-        if not hasattr(self, 'img_handle'):
-            self.img_handle = self.ax.imshow(
-                data,
-                extent=[-self.config['amp_x'], self.config['amp_x'],
-                        -self.config['amp_y'], self.config['amp_y']],
-                origin='lower',
-                aspect='equal',
-                cmap='cool'
-            )
-            self.ax.set_title('Live Data')
-            self.ax.set_xlabel('X Amplitude')
-            self.ax.set_ylabel('Y Amplitude')
-            self.colorbar = self.fig.colorbar(self.img_handle, ax=self.ax, orientation='vertical', pad=0.1)
-            self.colorbar.set_label('Intensity')
+        width_inch = max(8, 5 * n_channels) 
+        self.fig.set_size_inches(width_inch, 6)
+        self.fig.suptitle("Live Data (Multi-Channel)")
 
-            self.slice_x = data.shape[1] // 2
-            self.slice_y = data.shape[0] // 2
+        chunk_width = 0.8 / n_channels
+        bottom_main = 0.15
+        height_main = 0.65
 
-            x_extent = np.linspace(-self.config['amp_x'], self.config['amp_x'], self.data.shape[1])
-            y_extent = np.linspace(-self.config['amp_y'], self.config['amp_y'], self.data.shape[0])
+        for i in range(n_channels):
+            left_i = 0.1 + i*chunk_width
 
-            self.vline = self.ax.axvline(x=x_extent[self.slice_x], color='red', linestyle='--', lw=2)  # Vertical slice
-            self.hline = self.ax.axhline(y=y_extent[self.slice_y], color='blue', linestyle='--', lw=2)  # Horizontal slice
+            w_main = chunk_width * 0.65
+            ax_main = self.fig.add_axes([left_i, bottom_main, w_main, height_main])
 
-            # for the toolbar that normally pops up when using basic mpl stuff
-            if not hasattr(self, 'toolbar'):
-                toolbar_frame = ttk.Frame(self.root)
-                toolbar_frame.grid(row=3, column=0, columnspan=2, sticky='ew')
-                self.toolbar = NavigationToolbar2Tk(self.canvas, toolbar_frame)
-                self.toolbar.update()
-                self.toolbar.pack(side=tk.LEFT)
-        else:
-            self.img_handle.set_data(data)
-            self.img_handle.set_clim(vmin=data.min(), vmax=data.max())  
-            self.img_handle.set_extent([-self.config['amp_x'], self.config['amp_x'],
-                                        -self.config['amp_y'], self.config['amp_y']])  
+            cbar_left = left_i + w_main + (chunk_width * 0.02)
+            w_cbar = chunk_width * 0.08
+            ax_colorbar_rect = [cbar_left, bottom_main, w_cbar, height_main]
 
-        x_extent = np.linspace(-self.config['amp_x'], self.config['amp_x'], self.data.shape[1])
-        y_extent = np.linspace(-self.config['amp_y'], self.config['amp_y'], self.data.shape[0])
+            ax_hslice = self.fig.add_axes([
+                left_i,
+                bottom_main + height_main + 0.02,
+                w_main,
+                0.10
+            ])
 
-        self.vline.set_xdata([x_extent[self.slice_x]]) 
-        self.hline.set_ydata([y_extent[self.slice_y]]) 
+            vsl_left = cbar_left + w_cbar + (chunk_width * 0.02)
+            w_vslice = chunk_width * 0.08
+            ax_vslice = self.fig.add_axes([vsl_left, bottom_main, w_vslice, height_main])
 
-        self.update_slices()
+            channel_dict = {
+                "main": ax_main,
+                "hslice": ax_hslice,
+                "vslice": ax_vslice,
+                "img_handle": None,
+                "colorbar": None,       
+                "colorbar_rect": ax_colorbar_rect,
+                "vline": None,
+                "hline": None,
+            }
+            self.channel_axes.append(channel_dict)
+
         self.canvas.draw()
-        self.canvas.mpl_connect('button_press_event', self.on_image_click)
+
+    def display(self, data_list):
+        if not data_list:
+            return
+        n_channels = len(data_list)
+
+        if len(self.channel_axes) != n_channels:
+            self.setup_figure_axes(n_channels)
+        self.data = data_list
+
+        for i, data in enumerate(data_list):
+            ch_ax = self.channel_axes[i]
+            main_ax = ch_ax["main"]
+            hslice_ax = ch_ax["hslice"]
+            vslice_ax = ch_ax["vslice"]
+
+            if ch_ax["img_handle"] is None:
+                im = main_ax.imshow(
+                    data,
+                    extent=[-self.config['amp_x'], self.config['amp_x'],
+                            -self.config['amp_y'], self.config['amp_y']],
+                    origin='lower',
+                    aspect='equal',
+                    cmap='cool'
+                )
+                ch_ax["img_handle"] = im
+                main_ax.set_title(f'Channel {i+1}')
+                main_ax.set_xlabel('X Amplitude')
+                main_ax.set_ylabel('Y Amplitude')
+
+                colorbar_rect = ch_ax["colorbar_rect"]
+                cax = self.fig.add_axes(colorbar_rect)
+                cb = self.fig.colorbar(im, cax=cax, orientation='vertical')
+                cb.set_label('Intensity')
+                ch_ax["colorbar"] = cb
+
+                self.slice_x[i] = data.shape[1] // 2
+                self.slice_y[i] = data.shape[0] // 2
+
+                x_extent = np.linspace(-self.config['amp_x'], self.config['amp_x'], data.shape[1])
+                y_extent = np.linspace(-self.config['amp_y'], self.config['amp_y'], data.shape[0])
+
+                vline = main_ax.axvline(x=x_extent[self.slice_x[i]], color='red', linestyle='--', lw=2)
+                hline = main_ax.axhline(y=y_extent[self.slice_y[i]], color='blue', linestyle='--', lw=2)
+                ch_ax["vline"] = vline
+                ch_ax["hline"] = hline
+
+            else:
+                im = ch_ax["img_handle"]
+                im.set_data(data)
+                im.set_clim(vmin=data.min(), vmax=data.max())
+                im.set_extent([
+                    -self.config['amp_x'],
+                    self.config['amp_x'],
+                    -self.config['amp_y'],
+                    self.config['amp_y']
+                ])
+
+                x_extent = np.linspace(-self.config['amp_x'], self.config['amp_x'], data.shape[1])
+                y_extent = np.linspace(-self.config['amp_y'], self.config['amp_y'], data.shape[0])
+
+                ch_ax["vline"].set_xdata([x_extent[self.slice_x[i]]])
+                ch_ax["hline"].set_ydata([y_extent[self.slice_y[i]]])
+
+            self.update_slices(i, data)
+
+        self.canvas.draw()
 
     def on_image_click(self, event):
-        if str(self.toolbar.mode) in ["zoom rect", "pan/zoom"] or event.inaxes != self.ax: # dont change slices if zooming or panning
-            return 
+        if str(self.toolbar.mode) in ["zoom rect", "pan/zoom"]:
+            return
+        if not self.channel_axes or not self.data:
+            return
 
-        x_extent = np.linspace(-self.config['amp_x'], self.config['amp_x'], self.data.shape[1])
-        y_extent = np.linspace(-self.config['amp_y'], self.config['amp_y'], self.data.shape[0])
+        for i, ch_ax in enumerate(self.channel_axes):
+            if event.inaxes == ch_ax["main"]:
+                data = self.data[i]
+                x_extent = np.linspace(-self.config['amp_x'], self.config['amp_x'], data.shape[1])
+                y_extent = np.linspace(-self.config['amp_y'], self.config['amp_y'], data.shape[0])
 
-        self.slice_x = np.argmin(np.abs(x_extent - event.xdata))  
-        self.slice_y = np.argmin(np.abs(y_extent - event.ydata))  
+                self.slice_x[i] = np.argmin(np.abs(x_extent - event.xdata))
+                self.slice_y[i] = np.argmin(np.abs(y_extent - event.ydata))
 
-        self.root.after(0, self.display, self.data)
+                self.display(self.data)
+                return
 
-    def update_slices(self):
-        # update slices whenever a new image is taken
-        x_slice = self.data[self.slice_y, :]
-        y_slice = self.data[:, self.slice_x]
+    def update_slices(self, i, data):
+        ch_ax = self.channel_axes[i]
+        hslice_ax = ch_ax["hslice"]
+        vslice_ax = ch_ax["vslice"]
 
-        if hasattr(self, 'ax_hslice') and self.ax_hslice:
-            self.ax_hslice.clear()
-        else:
-            self.ax_hslice = self.fig.add_axes([0.11, 0.88, 0.63, 0.07])  
+        hslice_ax.clear()
+        vslice_ax.clear()
 
-        self.ax_hslice.plot(
-            np.linspace(-self.config['amp_x'], self.config['amp_x'], self.data.shape[1]),
-            x_slice,
-            color='blue'
-        )
-        self.ax_hslice.set_title('X-Slice')
-        self.ax_hslice.set_xticks([])
+        row = self.slice_y[i]
+        col = self.slice_x[i]
 
-        if hasattr(self, 'ax_vslice') and self.ax_vslice:
-            self.ax_vslice.clear()
-        else:
-            self.ax_vslice = self.fig.add_axes([0.92, 0.1, 0.06, 0.8])  
+        x_slice = data[row, :]
+        y_slice = data[:, col]
 
-        self.ax_vslice.plot(
-            y_slice,
-            np.linspace(-self.config['amp_y'], self.config['amp_y'], self.data.shape[0]),
-            color='red'
-        )
-        self.ax_vslice.set_title('Y-Slice')
-        self.ax_vslice.set_yticks([])
-        self.ax_vslice.set_yticklabels(self.ax_vslice.get_yticks(), rotation=90)
+        x_extent = np.linspace(-self.config['amp_x'], self.config['amp_x'], data.shape[1])
+        y_extent = np.linspace(-self.config['amp_y'], self.config['amp_y'], data.shape[0])
 
-        self.canvas.draw()
+        hslice_ax.plot(x_extent, x_slice, color='blue')
+        hslice_ax.set_title(f'X-Slice (Row={row})')
+        hslice_ax.set_xticks([])
+        hslice_ax.set_yticks([])
 
-
-    def generate_data(self):
-        # :)
-        numsteps_x = self.config['numsteps_x']
-        numsteps_y = self.config['numsteps_y']
-        data = np.random.uniform(0, 0.1, size=(numsteps_y, numsteps_x))
-
-        center_x, center_y = numsteps_x // 2, numsteps_y // 2
-        radius = min(numsteps_x, numsteps_y) // 4
-        eye_offset = radius // 2
-        eye_radius = radius // 8
-        mouth_radius = radius // 2
-        mouth_thickness = 2
-
-        for x in range(numsteps_x):
-            for y in range(numsteps_y):
-                if ((x - (center_x - eye_offset))**2 + (y - (center_y + eye_offset))**2) < eye_radius**2:
-                    data[y, x] = 1.0
-                if ((x - (center_x + eye_offset))**2 + (y - (center_y + eye_offset))**2) < eye_radius**2:
-                    data[y, x] = 1.0
-
-        for x in range(numsteps_x):
-            for y in range(numsteps_y):
-                dist = ((x - center_x)**2 + (y - (center_y + eye_offset // 2))**2)**0.5
-                if mouth_radius - mouth_thickness < dist < mouth_radius + mouth_thickness and y < center_y:
-                    data[y, x] = 1.0
-
-        return data
+        vslice_ax.plot(y_slice, y_extent, color='red')
+        vslice_ax.set_title(f'Y-Slice (Col={col})')
+        vslice_ax.set_yticks([])
+        vslice_ax.set_xticks([])
 
 
 
-############################################################################################################
-####################################### Misc Functions ######################################################
-############################################################################################################    
+    ############################################################################################################
+    ####################################### Simulation Helper ##################################################
+    ############################################################################################################
+    def generate_data(self, num_channels=1):
+        nx = self.config['numsteps_x']
+        ny = self.config['numsteps_y']
+
+        data_list = []
+        for ch in range(num_channels):
+            arr = np.random.uniform(0, 0.1, size=(ny, nx))
+
+            offset_x = np.random.randint(-nx // 8, nx // 8)
+            offset_y = np.random.randint(-ny // 8, ny // 8) 
+
+            center_x, center_y = nx // 2 + offset_x, ny // 2 + offset_y
+            offset = 0 # 40 * ch ill just keep it in case i want to add it back
+            radius = min(nx, ny) // 4
+            eye_offset = radius // 2
+            eye_radius = radius // 8
+            mouth_radius = radius // 2
+            mouth_thickness = 2
+
+            for x in range(nx):
+                for y in range(ny):
+                    if ((x - (center_x - eye_offset - offset))**2 + (y - (center_y + eye_offset))**2) < eye_radius**2:
+                        arr[y, x] = 1.0
+                    if ((x - (center_x + eye_offset - offset))**2 + (y - (center_y + eye_offset))**2) < eye_radius**2:
+                        arr[y, x] = 1.0
+                    dist = ((x - center_x + offset)**2 + (y - (center_y + eye_offset // 2))**2)**0.5
+                    if mouth_radius - mouth_thickness < dist < mouth_radius + mouth_thickness and y < center_y:
+                        arr[y, x] = 1.0
+
+            data_list.append(arr)
+
+        return data_list
+
+    ############################################################################################################
+    ####################################### Misc Functions #####################################################
+    ############################################################################################################
     def show_feedback(self, entry):
         original = entry.cget('background')
         entry.configure(background='lightgreen')
@@ -831,15 +947,13 @@ class GUI:
 
     def close(self):
         self.running = False
-        self.zaber_stage.disconnect()  
+        self.zaber_stage.disconnect()
         self.root.quit()
         self.root.destroy()
         os._exit(0)
 
 
-
 class Tooltip:
-    # for the little info things to hover over with descriptions
     def __init__(self, widget, text):
         self.widget = widget
         self.text = text
