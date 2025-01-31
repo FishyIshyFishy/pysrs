@@ -423,7 +423,7 @@ class GUI:
                 else:
                     data = lockin_scan(self.config['device'] + '/' + self.config['ai_chan'], galvo)
 
-                self.display(data)
+                self.root.after(0, self.display, data)
         except Exception as e:
             messagebox.showerror('Error', f'Cannot display data: {e}')
         finally:
@@ -446,9 +446,16 @@ class GUI:
         try:
             self.update_config()
 
-            if self.hyperspectral_enabled.get():
+            if self.hyperspectral_enabled.get() and self.save_acquisitions.get():
                 numshifts_str = self.entry_numshifts.get().strip()
-            elif self.save_acquisitions.get():
+                filename = self.save_file_entry.get().strip()
+                if not filename:
+                    messagebox.showerror('Error', 'Please specify a valid TIFF filename.')
+                    return None, None
+            elif self.hyperspectral_enabled.get() and not self.save_acquisitions.get():
+                numshifts_str = self.entry_numshifts.get().strip()
+                filename = None
+            elif not self.hyperspectral_enabled.get() and self.save_acquisitions.get():
                 numshifts_str = self.save_num_entry.get().strip()
                 filename = self.save_file_entry.get().strip()
                 if not filename:
@@ -496,7 +503,7 @@ class GUI:
                 break
 
             data = self.generate_data() if self.simulation_mode.get() else lockin_scan(self.config['device'] + '/' + self.config['ai_chan'], galvo)
-            self.display(data)
+            self.root.after(0, self.display, data)
             images.append(self.convert(data))
 
             self.progress_label.config(text=f'({i + 1}/{numframes})')
@@ -536,7 +543,7 @@ class GUI:
             galvo = Galvo(self.config)
             data = self.generate_data() if self.simulation_mode.get() else lockin_scan(self.config['device'] + '/' + self.config['ai_chan'], galvo)
 
-            self.display(data)
+            self.root.after(0, self.display, data)
             images.append(self.convert(data))
 
             self.progress_label.config(text=f'({i + 1}/{numshifts})')
@@ -712,7 +719,7 @@ class GUI:
         self.slice_x = np.argmin(np.abs(x_extent - event.xdata))  
         self.slice_y = np.argmin(np.abs(y_extent - event.ydata))  
 
-        self.display(self.data)
+        self.root.after(0, self.display, self.data)
 
     def update_slices(self):
         # update slices whenever a new image is taken
@@ -722,7 +729,7 @@ class GUI:
         if hasattr(self, 'ax_hslice') and self.ax_hslice:
             self.ax_hslice.clear()
         else:
-            self.ax_hslice = self.fig.add_axes([0.11, 0.91, 0.63, 0.05])  
+            self.ax_hslice = self.fig.add_axes([0.11, 0.88, 0.63, 0.07])  
 
         self.ax_hslice.plot(
             np.linspace(-self.config['amp_x'], self.config['amp_x'], self.data.shape[1]),
@@ -735,15 +742,16 @@ class GUI:
         if hasattr(self, 'ax_vslice') and self.ax_vslice:
             self.ax_vslice.clear()
         else:
-            self.ax_vslice = self.fig.add_axes([0.92, 0.1, 0.05, 0.8])  
+            self.ax_vslice = self.fig.add_axes([0.92, 0.1, 0.06, 0.8])  
 
         self.ax_vslice.plot(
             y_slice,
             np.linspace(-self.config['amp_y'], self.config['amp_y'], self.data.shape[0]),
             color='red'
         )
-        self.ax_vslice.set_title('Y-Slice', rotation=-90)
+        self.ax_vslice.set_title('Y-Slice')
         self.ax_vslice.set_yticks([])
+        self.ax_vslice.set_yticklabels(self.ax_vslice.get_yticks(), rotation=90)
 
         self.canvas.draw()
 
