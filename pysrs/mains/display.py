@@ -3,19 +3,40 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 def create_axes(gui, n_channels):
     gui.fig.clf()
+    gui.fig.patch.set_facecolor('#1E1E1E')  # Set figure background to dark
+
     gui.channel_axes = []
     gui.slice_x = [None] * n_channels
     gui.slice_y = [None] * n_channels
-    
+
     for i in range(n_channels):
         ax_main = gui.fig.add_subplot(1, n_channels, i+1)
-        ax_main.set_xlabel('')
-        ax_main.set_ylabel('')
-        
+        ax_main.set_facecolor('#1E1E1E')  # Dark background for axes
+        ax_main.spines['bottom'].set_color('white')
+        ax_main.spines['top'].set_color('white') 
+        ax_main.spines['left'].set_color('white')
+        ax_main.spines['right'].set_color('white')
+        ax_main.xaxis.label.set_color('white')
+        ax_main.yaxis.label.set_color('white')
+        ax_main.tick_params(axis='x', colors='white')
+        ax_main.tick_params(axis='y', colors='white')
+
         divider = make_axes_locatable(ax_main)
-        ax_hslice = divider.append_axes("bottom", size="30%", pad=0.05, sharex=ax_main)
-        ax_vslice = divider.append_axes("left", size="30%", pad=0.05, sharey=ax_main)
-        
+        ax_hslice = divider.append_axes("bottom", size="10%", pad=0.05, sharex=ax_main)
+        ax_vslice = divider.append_axes("left", size="10%", pad=0.05, sharey=ax_main)
+
+        # Apply dark background to slice plots
+        for ax in [ax_hslice, ax_vslice]:
+            ax.set_facecolor('#1E1E1E')
+            ax.spines['bottom'].set_color('white')
+            ax.spines['top'].set_color('white') 
+            ax.spines['left'].set_color('white')
+            ax.spines['right'].set_color('white')
+            ax.xaxis.label.set_color('white')
+            ax.yaxis.label.set_color('white')
+            ax.tick_params(axis='x', colors='white')
+            ax.tick_params(axis='y', colors='white')
+
         ch_dict = {
             "main": ax_main,
             "hslice": ax_hslice,
@@ -26,6 +47,7 @@ def create_axes(gui, n_channels):
             "hline": None,
         }
         gui.channel_axes.append(ch_dict)
+    
     gui.canvas.draw()
 
 def display_data(gui, data_list):
@@ -49,7 +71,7 @@ def display_data(gui, data_list):
                 extent=[x_extent[0], x_extent[-1], y_extent[0], y_extent[-1]],
                 origin='lower',
                 aspect='equal',
-                cmap='cool'
+                cmap='magma'  
             )
             ch_ax["img_handle"] = im
             ax_main.set_xlabel('')
@@ -63,7 +85,11 @@ def display_data(gui, data_list):
             
             cax = ax_main.inset_axes([1.05, 0, 0.05, 1])
             cb = gui.fig.colorbar(im, cax=cax, orientation='vertical')
-            cb.set_label('Intensity')
+            cb.set_label('Intensity', color='white')  # Change label color to white
+            cb.ax.yaxis.set_tick_params(color='white')  # Tick color
+            cb.outline.set_edgecolor('white')  # Border color
+            for label in cb.ax.yaxis.get_ticklabels():
+                label.set_color('white')  # Tick labels
             ch_ax["colorbar"] = cb
         else:
             im = ch_ax["img_handle"]
@@ -72,21 +98,21 @@ def display_data(gui, data_list):
             im.set_extent([x_extent[0], x_extent[-1], y_extent[0], y_extent[-1]])
         
         if ch_ax["vline"] is not None:
-            ch_ax["vline"].set_xdata(x_extent[gui.slice_x[i]])
+            ch_ax["vline"].set_xdata([x_extent[gui.slice_x[i]]]) # needs a list sadly
         if ch_ax["hline"] is not None:
-            ch_ax["hline"].set_ydata(y_extent[gui.slice_y[i]])
+            ch_ax["hline"].set_ydata([y_extent[gui.slice_y[i]]])  
         
         ax_hslice = ch_ax["hslice"]
         ax_hslice.clear()
         ax_hslice.plot(x_extent, data[gui.slice_y[i], :], color='blue')
+        ax_hslice.yaxis.tick_right()
         ax_hslice.set_xlim(x_extent[0], x_extent[-1])
-        ax_hslice.set_ylabel('Intensity', fontsize=8)
 
         ax_vslice = ch_ax["vslice"]
         ax_vslice.clear()
         ax_vslice.plot(data[:, gui.slice_x[i]], y_extent, color='red')
         ax_vslice.set_ylim(y_extent[0], y_extent[-1])
-        ax_vslice.set_xlabel('Intensity', fontsize=8)
+
         
     gui.canvas.draw_idle()
 
