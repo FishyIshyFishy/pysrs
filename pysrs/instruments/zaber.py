@@ -11,7 +11,7 @@ class ZaberStage:
         self.axis = None
 
     def connect(self, timeout=10):
-        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor: # failed attempt to get it to not crash if it cant connect
             future = executor.submit(self._connect)
             future.result(timeout=timeout)
 
