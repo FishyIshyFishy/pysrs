@@ -1,6 +1,7 @@
 import numpy as np
 from zaber_motion import Units
 from zaber_motion.ascii import Connection
+import concurrent.futures
 
 class ZaberStage:
     def __init__(self, port='COM3'):
@@ -9,7 +10,12 @@ class ZaberStage:
         self.device = None
         self.axis = None
 
-    def connect(self):
+    def connect(self, timeout=10):
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+            future = executor.submit(self._connect)
+            future.result(timeout=timeout)
+
+    def _connect(self):
         if self.connection is not None:
             return  
         self.connection = Connection.open_serial_port(self.port)

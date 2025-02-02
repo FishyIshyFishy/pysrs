@@ -126,15 +126,13 @@ class GUI:
         self.hyperspectral_enabled = tk.BooleanVar(value=False)
         self.rpoc_enabled = tk.BooleanVar(value=False)
         self.mask_file_path = tk.StringVar(value="No mask loaded")
+        self.zaber_stage = ZaberStage(port=self.config['zaber_chan'])
 
         # variable number of inputs means we have to handle the channels weirdly
         self.channel_axes = []
         self.slice_x = []
         self.slice_y = []
         self.data = None
-
-        self.zaber_stage = ZaberStage(port=self.config['zaber_chan'])
-        self.zaber_stage.connect() # this will throw a messagebox error if its the wrong channel, but thats a good thing 
         
         self.main_frame = ttk.Frame(self.root)
         self.main_frame.pack(fill="both", expand=True)
@@ -470,7 +468,7 @@ class GUI:
 
     def force_zaber(self):
         # move the zaber stage with a reminder to change to ASCII protocol in zaber console
-        # TODO: make the zaber.py informative on errors, handling these here is probably not good for modularization
+        # TODO: fix error handling when no zaber stage is connected at all, it just crashes right now
         move_position = self.hyper_config['single_um']
         try: 
             self.zaber_stage.connect()
