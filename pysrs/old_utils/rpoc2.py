@@ -95,7 +95,7 @@ class RPOC:
             else:
                 grayscale = Image.open(r'C:\Users\ishaa\Documents\ZhangLab\RamanSCPI\pysrs\pysrs\data\image.jpg').convert('L')  # for testing
                 grayscale = grayscale.copy().resize((400, 400))
-            # Convert to RGB (so display is in color) even though it’s grayscale
+            # convert to RGB (so display is in color) even though it’s grayscale
             self.image = Image.merge("RGB", (grayscale, grayscale, grayscale))
         except FileNotFoundError:
             print("Error: Image not found. Make sure 'data/image.jpg' exists.")

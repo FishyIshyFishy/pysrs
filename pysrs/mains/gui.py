@@ -1,5 +1,8 @@
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog, PhotoImage
+import numpy as np
+from matplotlib.figure import Figure
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
 import threading, os
 from pathlib import Path
 from PIL import Image, ImageTk
@@ -9,8 +12,6 @@ from utils import Tooltip, generate_data, convert
 import acquisition
 import calibration
 import display
-from matplotlib.figure import Figure
-from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg, NavigationToolbar2Tk
 import math
 from utils import Tooltip, generate_data, convert
 
@@ -348,8 +349,10 @@ class GUI:
         ###################################################################
         self.rpoc_pane = CollapsiblePane(self.sidebar, text='RPOC', gui=self)
         self.rpoc_pane.pack(fill="x", padx=10, pady=5)
+
         self.rpoc_frame = ttk.Frame(self.rpoc_pane.container, padding=(12, 12))
         self.rpoc_frame.grid(row=0, column=0, sticky="nsew")
+
         for col in range(2):
             self.rpoc_frame.columnconfigure(col, weight=1)
 
@@ -360,15 +363,22 @@ class GUI:
         self.rpoc_checkbutton.grid(row=0, column=0, columnspan=2, sticky='w', padx=5, pady=5)
 
         loadmask_button = ttk.Button(self.rpoc_frame, text='Load Saved Mask', command=self.update_mask)
-        loadmask_button.grid(row=1, column=0, padx=5, pady=10, sticky='ew')
+        loadmask_button.grid(row=1, column=0, padx=5, pady=5, sticky="ew")
+
+        self.mask_status_entry = ttk.Entry(self.rpoc_frame, width=20, font=('Calibri', 12), justify="center",
+                                        textvariable=self.mask_file_path, state="readonly")
+        self.mask_status_entry.grid(row=1, column=1, padx=5, pady=5, sticky="ew")
 
         newmask_button = ttk.Button(self.rpoc_frame, text='Create New Mask', command=self.create_mask)
-        newmask_button.grid(row=2, column=0, padx=5, pady=10, sticky='ew')
-        
-        self.mask_status_entry = ttk.Entry(self.rpoc_frame, width=20, font=default_font, justify="center",
-                                           textvariable=self.mask_file_path)
-        self.mask_status_entry.configure(state="readonly")
-        self.mask_status_entry.grid(row=1, column=1, padx=5, pady=10, sticky="w")
+        newmask_button.grid(row=2, column=0, padx=5, pady=5, sticky="ew")
+
+        self.rpoc_channel_var = tk.StringVar()
+        self.rpoc_channel_entry = ttk.Entry(self.rpoc_frame, textvariable=self.rpoc_channel_var)
+        self.rpoc_channel_entry.grid(row=2, column=1, padx=5, pady=5, sticky="ew")
+
+        self.rpoc_channel_entry.bind("<Return>", self.finalize_selection)
+        self.rpoc_channel_entry.bind("<FocusOut>", self.finalize_selection)
+
 
         ###################################################################
         ###################### PARAMETER ENTRY STUFF ######################
@@ -404,11 +414,11 @@ class GUI:
 
         self.info_frame = ttk.Frame(self.param_frame)
         self.info_frame.grid(row=0, column=0, columnspan=1, sticky="ew")
-        self.info_frame.grid_propagate(False)  # Prevents unnecessary expansion
+        self.info_frame.grid_propagate(False) 
 
         info_button_param = ttk.Label(self.info_frame, text='ⓘ', foreground=self.highlight_color,
                                     cursor='hand2', font=bold_font)
-        info_button_param.pack(side="left", padx=5, pady=(0, 2))  # Minimized padding
+        info_button_param.pack(side="left", padx=5, pady=(0, 2)) 
 
         galvo_tooltip_text = (
             "• Device (enter below): NI-DAQ device identifier (e.g., 'Dev1')\n"
@@ -481,20 +491,55 @@ class GUI:
         except Exception as e:
             messagebox.showerror("Stage Move Error", f"Error moving stage: {e}")
 
+    
     def create_mask(self):
-        # FIXME: doesnt actually open the RPOC editor properly?
+        if self.data is None or len(np.shape(self.data)) != 3:
+            messagebox.showerror("Data Error", "No valid data available. Try acquiring an image first.")
+            return
+
+        selected_channel = self.rpoc_channel_var.get()
+
+        if selected_channel not in self.config["channel_names"]:
+            messagebox.showerror("Selection Error", "Please select a valid input channel.")
+            return
+
+        channel_index = self.config["channel_names"].index(selected_channel)
+
+        if channel_index >= np.shape(self.data)[0]:
+            messagebox.showerror("Data Mismatch", f"No data occupies channel {selected_channel}. Try acquiring an image.")
+            return
+
+        selected_image = self.data[channel_index] 
+
         mask_window = tk.Toplevel(self.root)
-        mask_window.title('RPOC Mask Editor')
-        rpoc_app = RPOC(mask_window, image=self.data)
+        mask_window.title(f'RPOC Mask Editor - {selected_channel}')
+        RPOC(mask_window, image=selected_image) 
+
+    def update_rpoc_options(self):
+        if self.config["channel_names"]:
+            if self.rpoc_channel_var.get() not in self.config["channel_names"]:
+                self.rpoc_channel_var.set(self.config["channel_names"][0])  
+        else:
+            self.rpoc_channel_var.set("No channels available")
+
+
+    def finalize_selection(self, event):
+        current_text = self.rpoc_channel_var.get().strip()
+
+        if current_text in self.config["channel_names"]:
+            self.show_feedback(self.rpoc_channel_entry) 
+        else:
+            messagebox.showerror("Invalid Selection", f"'{current_text}' is not a valid channel.")  
 
     def update_mask(self):
-        # 'load mask' from the old labview script
+        # load mask button function
         file_path = filedialog.askopenfilename(
             title="Select Mask File",
             filetypes=[("Mask Files", "*.mask *.json *.txt"), ("All Files", "*.*")]
         )
         if file_path:
-            self.mask_file_path.set(f"Loaded: {os.path.basename(file_path)}")
+            filename = os.path.basename(file_path)
+            self.mask_file_path.set(filename)
         else:
             self.mask_file_path.set("No mask loaded")
 
@@ -504,9 +549,10 @@ class GUI:
             try:
                 if key in ['ao_chans', 'ai_chans', 'channel_names']:
                     channels = [v.strip() for v in value.split(',') if v.strip()]
-                    if channels != self.config[key]: 
+                    if channels != self.config[key]:
                         self.config[key] = channels
                         self.show_feedback(entry)
+                        self.update_rpoc_options() 
                 elif key == 'zaber_chan':
                     if value != self.config['zaber_chan']:  
                         if self.zaber_stage.is_connected():
@@ -514,7 +560,7 @@ class GUI:
                             print(f"[INFO] Disconnected from previous Zaber stage at {self.config['zaber_chan']}.")
 
                         self.config[key] = value 
-                        
+
                         try:
                             self.zaber_stage.port = value
                             self.zaber_stage.connect()
@@ -524,7 +570,7 @@ class GUI:
                                                 f'Could not connect to Zaber stage on port {value}.\n'
                                                 f'Make sure the connection is on ASCII protocol in Zaber console.\n\nError: {e}')
                             return 
-                        
+
                         self.show_feedback(entry)  
                 elif key == 'device':
                     if value != self.config[key]:
@@ -542,13 +588,19 @@ class GUI:
             except ValueError:
                 messagebox.showerror('Error', f'Invalid value for {key}. Please check your input.')
                 return  
+
+        self.update_rpoc_options()
+        self.toggle_hyperspectral_fields()
+        self.toggle_save_options()
+        self.toggle_rpoc_fields()
+
             
-    def show_feedback(self, entry):
-        # highligt the updated guys green once they are updated
+    def show_feedback(self, widget):
         local_style = ttk.Style()
         local_style.configure("Feedback.TEntry", fieldbackground="lightgreen")
-        entry.configure(style="Feedback.TEntry")
-        self.root.after(500, lambda: entry.configure(style="TEntry"))
+
+        widget.configure(style="Feedback.TEntry")  
+        self.root.after(500, lambda: widget.configure(style="TEntry"))  #
             
     def browse_save_path(self):
         # open file selector when the file folder emoji is pressed
@@ -598,10 +650,14 @@ class GUI:
     def toggle_rpoc_fields(self):
         parent = self.rpoc_checkbutton.winfo_parent()
         parent = self.rpoc_checkbutton.nametowidget(parent)
-        state = tk.NORMAL if self.rpoc_enabled.get() else tk.DISABLED
+        state = "normal" if self.rpoc_enabled.get() else "disabled"
+
         for widget in parent.winfo_children():
             if widget != self.rpoc_checkbutton:
                 widget.configure(state=state)
+        
+        self.update_rpoc_options()  
+
 
     def close(self):
         # make sure closing the window also stops the code, basically just a cleanup function
