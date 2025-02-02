@@ -36,13 +36,11 @@ def lockin_scan(lockin_chan, galvo):
         ao_task.wait_until_done(timeout=galvo.total_samples / galvo.rate + 5)
         ai_task.wait_until_done(timeout=galvo.total_samples / galvo.rate + 5)
 
-
         lockin_data = np.array(
             ai_task.read(
                 number_of_samples_per_channel=galvo.total_samples
             )
         )
-
 
     nChan = len(lockin_chan)
     out_list = []
@@ -50,10 +48,10 @@ def lockin_scan(lockin_chan, galvo):
     if nChan == 1:
         lockin_data = lockin_data.reshape(galvo.total_y, galvo.total_x, galvo.pixel_samples)
         data = np.mean(lockin_data, axis=2)
-        cropped = data[galvo.numsteps_extra:-galvo.numsteps_extra, galvo.numsteps_extra:-galvo.numsteps_extra]
-        return cropped
+        cropped = data[galvo.numsteps_extra:-galvo.numsteps_extra,
+                       galvo.numsteps_extra:-galvo.numsteps_extra]
+        return [cropped]  # Always return a list, even for one channel.
     else:
-        # multiple channels
         for i in range(nChan):
             chan_data = lockin_data[i]  # shape=(total_samples,)
             chan_data = chan_data.reshape(galvo.total_y, galvo.total_x, galvo.pixel_samples)
@@ -62,6 +60,7 @@ def lockin_scan(lockin_chan, galvo):
                              galvo.numsteps_extra:-galvo.numsteps_extra]
             out_list.append(cropped)
         return out_list
+    
 
 def plot_image(data: np.ndarray, galvo: Galvo, savedat=True) -> None:
     if savedat:

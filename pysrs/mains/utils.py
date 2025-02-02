@@ -66,9 +66,3 @@ def convert(data, type=np.uint8):
     arr_norm = (data_flipped - data_flipped.min()) / (data_flipped.max() - data_flipped.min() + 1e-9)
     arr_typed = (arr_norm * 255).astype(type)
     return Image.fromarray(arr_typed)
-
-@staticmethod # this doesnt even work but i cant figure out why
-def show_feedback(gui, entry):
-    original = entry.cget('background')
-    entry.configure(background='lightgreen')
-    gui.root.after(500, lambda: entry.configure(background=original))

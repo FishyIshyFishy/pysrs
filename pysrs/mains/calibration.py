@@ -79,11 +79,11 @@ def calibrate_stage(gui):
                 break
 
             if gui.simulation_mode.get():
-                data_list = gui.generate_data(len(gui.config['ai_chan']))
+                data_list = gui.generate_data(len(gui.config['ai_chans']))
                 data = data_list[0]
             else:
                 galvo = Galvo(gui.config)
-                data_list = lockin_scan([f"{gui.config['device']}/{ch}" for ch in gui.config['ai_chan']], galvo)
+                data_list = lockin_scan([f"{gui.config['device']}/{ch}" for ch in gui.config['ai_chans']], galvo)
                 data = data_list[0]
 
             avg_val = data.mean()

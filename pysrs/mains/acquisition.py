@@ -27,7 +27,7 @@ def scan(gui):
     try:
         while gui.running:
             gui.update_config()
-            channels = [f"{gui.config['device']}/{ch}" for ch in gui.config['ai_chan']]
+            channels = [f"{gui.config['device']}/{ch}" for ch in gui.config['ai_chans']]
             galvo = Galvo(gui.config)
             if gui.simulation_mode.get():
                 data_list = generate_data(len(channels), config=gui.config)
@@ -98,7 +98,7 @@ def acquire_multiple(gui, numshifts):
     images = []
     gui.progress_label.config(text=f'(0/{numframes})')
     gui.root.update_idletasks()
-    channels = [f"{gui.config['device']}/{ch}" for ch in gui.config['ai_chan']]
+    channels = [f"{gui.config['device']}/{ch}" for ch in gui.config['ai_chans']]
     galvo = Galvo(gui.config)
     for i in range(numframes):
         if not gui.acquiring:
@@ -126,7 +126,7 @@ def acquire_hyperspectral(gui, numshifts):
     images = []
     gui.progress_label.config(text=f'(0/{numshifts})')
     gui.root.update_idletasks()
-    channels = [f"{gui.config['device']}/{ch}" for ch in gui.config['ai_chan']]
+    channels = [f"{gui.config['device']}/{ch}" for ch in gui.config['ai_chans']]
     for i, pos in enumerate(positions):
         if not gui.acquiring:
             break
@@ -159,9 +159,16 @@ def save_images(gui, images, filename):
     for ch_idx in range(num_channels):
         channel_frames = [frame[ch_idx] for frame in images]
         counter = 1
-        new_filename = f"{base}_chan{ch_idx}{ext}"
+        # fallback to "chan{ch_idx}"
+        if 'channel_names' in gui.config and len(gui.config['channel_names']) > ch_idx:
+            channel_suffix = gui.config['channel_names'][ch_idx]
+        elif ch_idx < len(gui.config['ai_chans']):
+            channel_suffix = gui.config['ai_chans'][ch_idx]
+        else:
+            channel_suffix = f"chan{ch_idx}"
+        new_filename = f"{base}_{channel_suffix}{ext}"
         while os.path.exists(new_filename):
-            new_filename = f"{base}_chan{ch_idx}_{counter}{ext}"
+            new_filename = f"{base}_{channel_suffix}_{counter}{ext}"
             counter += 1
         if len(channel_frames) > 1:
             channel_frames[0].save(

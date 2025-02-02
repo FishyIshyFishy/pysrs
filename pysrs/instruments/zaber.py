@@ -11,7 +11,7 @@ class ZaberStage:
 
     def connect(self):
         if self.connection is not None:
-            return  # Already connected
+            return  
         self.connection = Connection.open_serial_port(self.port)
         self.connection.enable_alerts()
         devices = self.connection.detect_devices()
@@ -29,6 +29,12 @@ class ZaberStage:
         position_mm = position_um * 1e-3
         self.axis.move_absolute(position_mm, Units.LENGTH_MILLIMETRES)
         self.axis.wait_until_idle()
+
+    def is_connected(self):
+        if self.connection is not None:
+            return True
+        else: 
+            return False
 
     def disconnect(self):
         if self.connection:
