@@ -24,7 +24,7 @@ from ctypes import WinDLL, create_string_buffer
 import os
 import sys
 
-path = "PriorScientificSDK.dll"
+path = r"C:\Users\Lab Admin\Documents\PythonStuff\pysrs\pysrs\instruments\prior_stage\PriorScientificSDK.dll"
 
 if os.path.exists(path):
     SDKPrior = WinDLL(path)
@@ -32,7 +32,7 @@ else:
     raise RuntimeError("DLL could not be loaded.")
 
 rx = create_string_buffer(1000)
-realhw = False
+realhw = True
 
 
 def cmd(msg):
@@ -43,49 +43,49 @@ def cmd(msg):
     if ret:
         print(f"Api error {ret}")
     else:
-        print(f"OK {rx.value.decode()}")
+        print(f"46 OK {rx.value.decode()}")
 
-    input("Press ENTER to continue...")
+    input("48 Press ENTER to continue...")
     return ret, rx.value.decode()
 
 
 ret = SDKPrior.PriorScientificSDK_Initialise()
 if ret:
-    print(f"Error initialising {ret}")
+    print(f"54 Error initialising {ret}")
     sys.exit()
 else:
-    print(f"Ok initialising {ret}")
+    print(f"57 Ok initialising {ret}")
 
 
 ret = SDKPrior.PriorScientificSDK_Version(rx)
-print(f"dll version api ret={ret}, version={rx.value.decode()}")
+print(f"61 dll version api ret={ret}, version={rx.value.decode()}")
 
 
 sessionID = SDKPrior.PriorScientificSDK_OpenNewSession()
 if sessionID < 0:
-    print(f"Error getting sessionID {ret}")
+    print(f"66 Error getting sessionID {ret}")
 else:
-    print(f"SessionID = {sessionID}")
+    print(f"68 SessionID = {sessionID}")
 
 
 ret = SDKPrior.PriorScientificSDK_cmd(
-    sessionID, create_string_buffer(b"dll.apitest 33 goodresponse"), rx
+    sessionID, create_string_buffer(b"72 dll.apitest 33 goodresponse"), rx
 )
-print(f"api response {ret}, rx = {rx.value.decode()}")
-input("Press ENTER to continue...")
+print(f"74 api response {ret}, rx = {rx.value.decode()}")
+input("75 Press ENTER to continue...")
 
 
 ret = SDKPrior.PriorScientificSDK_cmd(
     sessionID, create_string_buffer(b"dll.apitest -300 stillgoodresponse"), rx
 )
-print(f"api response {ret}, rx = {rx.value.decode()}")
-input("Press ENTER to continue...")
+print(f"81 api response {ret}, rx = {rx.value.decode()}")
+input("82 Press ENTER to continue...")
 
 
 if realhw:
     print("Connecting...")
     # substitute 3 with your com port Id
-    cmd("controller.connect 3")
+    cmd("controller.connect 4")
 
     # test an illegal command
     cmd("controller.stage.position.getx")
