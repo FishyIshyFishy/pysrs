@@ -355,6 +355,28 @@ class GUI:
         self.movestage_button.grid(row=6, column=1, padx=5, pady=10, sticky='ew')
 
         ###################################################################
+        ####################### PRIOR STAGE STUFF #########################
+        ###################################################################
+        self.prior_pane = CollapsiblePane(self.sidebar, text='Prior Stage Settings', gui=self)
+        self.prior_pane.pack(fill="x", padx=10, pady=5)
+        self.prior_stage_frame = ttk.Frame(self.prior_pane.container, padding=(12, 12))
+        self.prior_stage_frame.grid(row=0, column=0, sticky="nsew")
+        for col in range(3):
+            self.prior_stage_frame.columnconfigure(col, weight=1)
+
+        ttk.Label(self.prior_stage_frame, text="Port (COM #)").grid(row=0, column=0, padx=5, pady=3, sticky="w")
+        self.prior_port_entry = ttk.Entry(self.prior_stage_frame, width=10)
+        self.prior_port_entry.insert(0, "4")  # Default port for Prior Stage
+        self.prior_port_entry.grid(row=0, column=1, padx=5, pady=3, sticky="ew")
+
+        ttk.Label(self.prior_stage_frame, text="Set Z Height (µm)").grid(row=1, column=0, padx=5, pady=3, sticky="w")
+        self.prior_z_entry = ttk.Entry(self.prior_stage_frame, width=10)
+        self.prior_z_entry.grid(row=1, column=1, padx=5, pady=3, sticky="ew")
+
+        self.prior_move_button = ttk.Button(self.prior_stage_frame, text="Move Z", command=self.move_prior_stage)
+        self.prior_move_button.grid(row=2, column=0, columnspan=2, pady=5, sticky="ew")
+
+        ###################################################################
         ########################### RPOC STUFF ############################
         ###################################################################
         self.rpoc_pane = CollapsiblePane(self.sidebar, text='RPOC', gui=self)
@@ -389,7 +411,6 @@ class GUI:
         self.rpoc_channel_entry.bind("<Return>", self.finalize_selection)
         self.rpoc_channel_entry.bind("<FocusOut>", self.finalize_selection)
 
-<<<<<<< HEAD
         self.apply_mask_var = tk.BooleanVar(value=False)
         apply_mask_check = ttk.Checkbutton(
             self.rpoc_frame,
@@ -402,30 +423,6 @@ class GUI:
         self.mask_ttl_channel_var = tk.StringVar(value="ao2")
         mask_ttl_entry = ttk.Entry(self.rpoc_frame, textvariable=self.mask_ttl_channel_var)
         mask_ttl_entry.grid(row=3, column=2, padx=5, pady=5, sticky='ew')
-=======
-        ###################################################################
-        ####################### PRIOR STAGE STUFF #########################
-        ###################################################################
-        self.prior_pane = CollapsiblePane(self.sidebar, text='Prior Stage Settings', gui=self)
-        self.prior_pane.pack(fill="x", padx=10, pady=5)
-        self.prior_stage_frame = ttk.Frame(self.prior_pane.container, padding=(12, 12))
-        self.prior_stage_frame.grid(row=0, column=0, sticky="nsew")
-        for col in range(3):
-            self.prior_stage_frame.columnconfigure(col, weight=1)
-
-        ttk.Label(self.prior_stage_frame, text="Port (COM #)").grid(row=0, column=0, padx=5, pady=3, sticky="w")
-        self.prior_port_entry = ttk.Entry(self.prior_stage_frame, width=10)
-        self.prior_port_entry.insert(0, "4")  # Default port for Prior Stage
-        self.prior_port_entry.grid(row=0, column=1, padx=5, pady=3, sticky="ew")
-
-        ttk.Label(self.prior_stage_frame, text="Set Z Height (µm)").grid(row=1, column=0, padx=5, pady=3, sticky="w")
-        self.prior_z_entry = ttk.Entry(self.prior_stage_frame, width=10)
-        self.prior_z_entry.grid(row=1, column=1, padx=5, pady=3, sticky="ew")
-
-        self.prior_move_button = ttk.Button(self.prior_stage_frame, text="Move Z", command=self.move_prior_stage)
-        self.prior_move_button.grid(row=2, column=0, columnspan=2, pady=5, sticky="ew")
-
->>>>>>> 5d86b295f5745d78da0eb280849b6fdf4d821946
 
 
         ###################################################################

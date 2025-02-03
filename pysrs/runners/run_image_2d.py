@@ -11,9 +11,17 @@ def lockin_scan(lockin_chan, galvo):
         lockin_chan = [lockin_chan]  # wrap single in list
 
     with nidaqmx.Task() as ao_task, nidaqmx.Task() as ai_task:
-        ao_task.ao_channels.add_ao_voltage_chan(f'{galvo.device}/{galvo.ao_chans[0]}')
-        ao_task.ao_channels.add_ao_voltage_chan(f'{galvo.device}/{galvo.ao_chans[1]}')
+        chans = list(galvo.ao_chans)
+        composite = galvo.waveform.copy()
 
+        for chan in chans:
+            ao_task.ao_channels.add_ao_voltage_chan(f'{galvo.device}/{chan}')
+        ao_task.timing.cfg_samp_clk_timing(
+            rate=galvo.rate,
+            sample_mode=AcquisitionType.FINITE,
+            samps_per_chan=composite.shape[1]
+        )
+        
         for ch in lockin_chan:
             ai_task.ai_channels.add_ai_voltage_chan(ch)
 

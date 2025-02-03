@@ -12,19 +12,22 @@ def start_scan(gui):
         messagebox.showwarning('Warning', 'Scan is already running.')
         return
         
+    rpoc_mask = None
+    ttl_channel = None
+
     if gui.rpoc_enabled.get() and gui.apply_mask_var.get():
         if hasattr(gui, 'rpoc_mask') and gui.rpoc_mask is not None:
             rpoc_mask = gui.rpoc_mask
             ttl_channel = gui.mask_ttl_channel_var.get().strip()
         else:
             messagebox.showerror("Mask Error", "No valid mask loaded. Please load or create a mask.")
+            return
 
     gui.running = True
     gui.continuous_button['state'] = 'disabled'
     gui.stop_button['state'] = 'normal'
 
     threading.Thread(target=scan, args=(gui,), kwargs={'rpoc_mask': rpoc_mask, 'ttl_channel': ttl_channel}, daemon=True).start()
-
 
 def stop_scan(gui):
     gui.running = False
@@ -33,12 +36,13 @@ def stop_scan(gui):
     gui.stop_button['state'] = 'disabled'
     gui.single_button['state'] = 'normal'
 
-def scan(gui):
+def scan(gui, rpoc_mask=None, ttl_channel=None):
     try:
         while gui.running:
             gui.update_config()
             channels = [f"{gui.config['device']}/{ch}" for ch in gui.config['ai_chans']]
-            galvo = Galvo(gui.config)
+            # Pass the mask and TTL info into the Galvo instance.
+            galvo = Galvo(gui.config, rpoc_mask=rpoc_mask, ttl_channel=ttl_channel)
             if gui.simulation_mode.get():
                 data_list = generate_data(len(channels), config=gui.config)
             else:
@@ -50,6 +54,7 @@ def scan(gui):
         gui.running = False
         gui.continuous_button['state'] = 'normal'
         gui.stop_button['state'] = 'disabled'
+
 
 def acquire(gui, startup=False):
     if gui.running and not startup:
