@@ -11,10 +11,20 @@ def start_scan(gui):
     if gui.running:
         messagebox.showwarning('Warning', 'Scan is already running.')
         return
+        
+    if gui.rpoc_enabled.get() and gui.apply_mask_var.get():
+        if hasattr(gui, 'rpoc_mask') and gui.rpoc_mask is not None:
+            rpoc_mask = gui.rpoc_mask
+            ttl_channel = gui.mask_ttl_channel_var.get().strip()
+        else:
+            messagebox.showerror("Mask Error", "No valid mask loaded. Please load or create a mask.")
+
     gui.running = True
     gui.continuous_button['state'] = 'disabled'
     gui.stop_button['state'] = 'normal'
-    threading.Thread(target=scan, args=(gui,), daemon=True).start()
+
+    threading.Thread(target=scan, args=(gui,), kwargs={'rpoc_mask': rpoc_mask, 'ttl_channel': ttl_channel}, daemon=True).start()
+
 
 def stop_scan(gui):
     gui.running = False

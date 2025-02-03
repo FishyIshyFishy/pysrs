@@ -50,7 +50,7 @@ def lockin_scan(lockin_chan, galvo):
         data = np.mean(lockin_data, axis=2)
         cropped = data[galvo.numsteps_extra:-galvo.numsteps_extra,
                        galvo.numsteps_extra:-galvo.numsteps_extra]
-        return [cropped]  # Always return a list, even for one channel.
+        return [cropped]  
     else:
         for i in range(nChan):
             chan_data = lockin_data[i]  # shape=(total_samples,)

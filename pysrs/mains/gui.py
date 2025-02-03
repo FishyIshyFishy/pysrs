@@ -379,6 +379,19 @@ class GUI:
         self.rpoc_channel_entry.bind("<Return>", self.finalize_selection)
         self.rpoc_channel_entry.bind("<FocusOut>", self.finalize_selection)
 
+        self.apply_mask_var = tk.BooleanVar(value=False)
+        apply_mask_check = ttk.Checkbutton(
+            self.rpoc_frame,
+            text='Apply RPOC Mask',
+            variable=self.apply_mask_var
+        )
+        apply_mask_check.grid(row=3, column=0, padx=5, pady=5, sticky="w")
+
+        ttk.Label(self.rpoc_frame, text='TTL AO Channel:').grid(row=3, column=1, padx=5, pady=5, sticky='e')
+        self.mask_ttl_channel_var = tk.StringVar(value="ao2")
+        mask_ttl_entry = ttk.Entry(self.rpoc_frame, textvariable=self.mask_ttl_channel_var)
+        mask_ttl_entry.grid(row=3, column=2, padx=5, pady=5, sticky='ew')
+
 
         ###################################################################
         ###################### PARAMETER ENTRY STUFF ######################
@@ -535,13 +548,19 @@ class GUI:
         # load mask button function
         file_path = filedialog.askopenfilename(
             title="Select Mask File",
-            filetypes=[("Mask Files", "*.mask *.json *.txt"), ("All Files", "*.*")]
+            filetypes=[("Mask Files", "*.mask *.json *.txt *.png"), ("All Files", "*.*")]
         )
         if file_path:
             filename = os.path.basename(file_path)
             self.mask_file_path.set(filename)
+            # Load and store the mask as a PIL Image:
+            try:
+                self.rpoc_mask = Image.open(file_path).convert('L')
+            except Exception as e:
+                messagebox.showerror("Mask Error", f"Error loading mask: {e}")
         else:
             self.mask_file_path.set("No mask loaded")
+            self.rpoc_mask = None
 
     def update_config(self):
         for key, entry in self.param_entries.items():
