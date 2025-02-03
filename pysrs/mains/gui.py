@@ -7,7 +7,7 @@ import threading, os
 from pathlib import Path
 from PIL import Image, ImageTk
 from pysrs.instruments.zaber import ZaberStage
-from pysrs.old_utils.rpoc2 import RPOC
+from pysrs.mains.rpoc2 import RPOC
 from utils import Tooltip, generate_data, convert
 import acquisition
 import calibration
