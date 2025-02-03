@@ -41,7 +41,6 @@ def scan(gui, rpoc_mask=None, ttl_channel=None):
         while gui.running:
             gui.update_config()
             channels = [f"{gui.config['device']}/{ch}" for ch in gui.config['ai_chans']]
-            # Pass the mask and TTL info into the Galvo instance.
             galvo = Galvo(gui.config, rpoc_mask=rpoc_mask, ttl_channel=ttl_channel)
             if gui.simulation_mode.get():
                 data_list = generate_data(len(channels), config=gui.config)

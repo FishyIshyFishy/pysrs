@@ -8,6 +8,7 @@ from pathlib import Path
 from PIL import Image, ImageTk
 from pysrs.instruments.zaber import ZaberStage
 from pysrs.mains.rpoc2 import RPOC
+from pysrs.mains.widgets import CollapsiblePane, ScrollableFrame
 from utils import Tooltip, generate_data, convert
 import acquisition
 import calibration
@@ -18,74 +19,6 @@ from pysrs.instruments.prior_stage.prior_stage_movement_test import send_command
 
 BASE_DIR = Path(__file__).resolve().parent.parent # directory definition to access icons that i will add later 
 FOLDERICON_PATH = BASE_DIR / "data" / "folder_icon.png" # for browsing the save path
-
-# each block of components can be collapsed, will be particularly useful when i add more stuff (z stage etc.)
-class CollapsiblePane(ttk.Frame):
-    def __init__(self, parent, text="", gui=None, *args, **kwargs):
-        super().__init__(parent, *args, **kwargs)
-        self.gui = gui  
-        self.show = tk.BooleanVar(value=True)
-
-        self.header = ttk.Frame(self, padding=(5, 2))
-        self.header.pack(fill="x", expand=True)
-
-        self.toggle_button = ttk.Checkbutton(
-            self.header, text=text, variable=self.show, command=self.toggle, style="Toolbutton"
-        )
-        self.toggle_button.pack(side="left", fill="x", expand=True)
-
-        self.container = ttk.Frame(self, padding=(5, 5))
-        self.container.pack(fill="both", expand=True)
-
-    def toggle(self):
-        if self.show.get():
-            self.container.pack(fill="both", expand=True)
-        else:
-            self.container.forget()
-        if self.gui is not None:  # dont crash the whole thing pretty please
-            self.gui.update_sidebar_visibility()
-
-
-
-class ScrollableFrame(ttk.Frame):
-    def __init__(self, parent, *args, **kwargs):
-        super().__init__(parent, *args, **kwargs)
-        self.bg_color = "#3A3A3A"
-        style = ttk.Style()
-        style.configure("Dark.TFrame", background=self.bg_color)
-
-        self.canvas = tk.Canvas(self, highlightthickness=0, borderwidth=0, background=self.bg_color)
-        self.scrollbar = ttk.Scrollbar(self, orient="vertical", command=self.canvas.yview, style="Vertical.TScrollbar")
-        self.scrollable_frame = ttk.Frame(self.canvas, style="Dark.TFrame")
-        self.scrollable_frame.bind("<Configure>", self.update_scroll_region)
-        
-        self.canvas_window = self.canvas.create_window((0, 0), window=self.scrollable_frame, anchor="nw")
-        self.canvas.configure(yscrollcommand=self.scrollbar.set)
-        self.canvas.pack(side="left", fill="both", expand=True)
-        self.scrollbar.pack(side="right", fill="y")
-        self.bind("<Configure>", self.update_background)
-
-        self.canvas.bind_all("<MouseWheel>", self._on_mousewheel)
-        self.canvas.bind_all("<Button-4>", self._on_mousewheel)
-        self.canvas.bind_all("<Button-5>", self._on_mousewheel)
-
-    def update_scroll_region(self, event=None): # wrapper to make it obvious what this thing actually does
-        self.canvas.configure(scrollregion=self.canvas.bbox("all"))
-
-    def update_background(self, event=None): # background was acting weird but this fixes it so ill just keep it i guess thanks chatgpt
-        self.canvas.config(bg=self.bg_color)
-        self.canvas.itemconfig(self.canvas_window, width=self.canvas.winfo_width())
-
-    def _on_mousewheel(self, event):
-        if event.num == 4:
-            self.canvas.yview_scroll(-1, "units")
-        elif event.num == 5:
-            self.canvas.yview_scroll(1, "units")
-        else:
-            self.canvas.yview_scroll(int(-1*(event.delta/120)), "units")
-
-
-
 
 class GUI:
     def __init__(self, root):
@@ -153,6 +86,10 @@ class GUI:
         self.paned.add(self.display_area, weight=1)
         self.display_area.rowconfigure(0, weight=1)
         self.display_area.columnconfigure(0, weight=1)
+        self.auto_colorbar_vars = {}      # Dictionary: channel_name -> BooleanVar (True means auto-scale)
+        self.fixed_colorbar_vars = {}      # Dictionary: channel_name -> StringVar (the fixed max value)
+        self.fixed_colorbar_widgets = {}   # Dictionary: channel_name -> reference to the Entry widget
+
 
         style = ttk.Style()
         style.theme_use('clam')
@@ -299,6 +236,8 @@ class GUI:
         browse_button = ttk.Button(self.path_frame, text="📂", width=2, command=self.browse_save_path)
         browse_button.grid(row=0, column=1, padx=5)
 
+
+
         ###################################################################
         ######################## DELAY STAGE STUFF ########################
         ###################################################################
@@ -383,51 +322,59 @@ class GUI:
         ###################################################################
         ########################### RPOC STUFF ############################
         ###################################################################
-        self.rpoc_pane = CollapsiblePane(self.sidebar, text='RPOC', gui=self)
+        self.rpoc_pane = CollapsiblePane(self.sidebar, text='RPOC Masking', gui=self)
         self.rpoc_pane.pack(fill="x", padx=10, pady=5)
 
         self.rpoc_frame = ttk.Frame(self.rpoc_pane.container, padding=(12, 12))
         self.rpoc_frame.grid(row=0, column=0, sticky="nsew")
 
-        for col in range(2):
+        for col in range(3):  # Ensure proper column alignment
             self.rpoc_frame.columnconfigure(col, weight=1)
 
-        self.rpoc_checkbutton = ttk.Checkbutton(
-            self.rpoc_frame, text='Enable RPOC',
-            variable=self.rpoc_enabled, command=self.toggle_rpoc_fields
-        )
-        self.rpoc_checkbutton.grid(row=0, column=0, columnspan=2, sticky='w', padx=5, pady=5)
-
-        loadmask_button = ttk.Button(self.rpoc_frame, text='Load Saved Mask', command=self.update_mask)
-        loadmask_button.grid(row=1, column=0, padx=5, pady=5, sticky="ew")
-
-        self.mask_status_entry = ttk.Entry(self.rpoc_frame, width=20, font=('Calibri', 12), justify="center",
-                                        textvariable=self.mask_file_path, state="readonly")
-        self.mask_status_entry.grid(row=1, column=1, padx=5, pady=5, sticky="ew")
-
-        newmask_button = ttk.Button(self.rpoc_frame, text='Create New Mask', command=self.create_mask)
-        newmask_button.grid(row=2, column=0, padx=5, pady=5, sticky="ew")
-
-        ttk.Label(self.rpoc_frame, text='Create mask from: ').grid(row=2, column=1, padx=5, pady=5, sticky='w')
-        self.rpoc_channel_var = tk.StringVar()
-        self.rpoc_channel_entry = ttk.Entry(self.rpoc_frame, textvariable=self.rpoc_channel_var)
-        self.rpoc_channel_entry.grid(row=2, column=2, padx=5, pady=5, sticky="ew")
-
-        self.rpoc_channel_entry.bind("<Return>", self.finalize_selection)
-        self.rpoc_channel_entry.bind("<FocusOut>", self.finalize_selection)
-
+        # Apply Mask Checkbox (Main Toggle)
         self.apply_mask_var = tk.BooleanVar(value=False)
         apply_mask_check = ttk.Checkbutton(
             self.rpoc_frame,
             text='Apply RPOC Mask',
-            variable=self.apply_mask_var
+            variable=self.apply_mask_var,
+            command=self.toggle_rpoc_fields
         )
-        apply_mask_check.grid(row=3, column=0, padx=5, pady=5, sticky="w")
+        apply_mask_check.grid(row=0, column=0, columnspan=3, padx=5, pady=5, sticky="w")
 
-        ttk.Label(self.rpoc_frame, text='TTL AO Channel:').grid(row=3, column=1, padx=5, pady=5, sticky='w')
-        self.mask_ttl_channel_var = tk.StringVar(value="ao2")
-        mask_ttl_entry = ttk.Entry(self.rpoc_frame, textvariable=self.mask_ttl_channel_var)
-        mask_ttl_entry.grid(row=3, column=2, padx=5, pady=5, sticky='ew')
+        # Load Mask Button
+        loadmask_button = ttk.Button(self.rpoc_frame, text='Load Mask', command=self.update_mask)
+        loadmask_button.grid(row=1, column=0, padx=5, pady=5, sticky="ew")
+
+        # Mask File Path Display
+        self.mask_status_entry = ttk.Entry(
+            self.rpoc_frame, width=20, font=('Calibri', 12), justify="center",
+            textvariable=self.mask_file_path, state="readonly"
+        )
+        self.mask_status_entry.grid(row=1, column=1, padx=5, pady=5, columnspan=1, sticky="ew")
+
+        newmask_button = ttk.Button(self.rpoc_frame, text='Create New Mask', command=self.create_mask)
+        newmask_button.grid(row=2, column=0, padx=5, pady=5, sticky="ew")
+
+        ttk.Label(self.rpoc_frame, text='Create mask from:').grid(
+            row=3, column=0, columnspan=1, padx=1, pady=1, sticky='e'
+        )
+
+        self.rpoc_channel_var = tk.StringVar()
+        self.rpoc_channel_entry = ttk.Entry(self.rpoc_frame, textvariable=self.rpoc_channel_var)
+        self.rpoc_channel_entry.grid(row=3, column=1, padx=5, pady=5, sticky="ew")
+
+        self.rpoc_channel_entry.bind("<Return>", self.finalize_selection)
+        self.rpoc_channel_entry.bind("<FocusOut>", self.finalize_selection)
+
+        ttk.Label(self.rpoc_frame, text='TTL DO Line:').grid(row=4, column=0, padx=5, pady=5, sticky='e')
+
+        self.mask_ttl_channel_var = tk.StringVar(value="po4")
+        self.mask_ttl_entry = ttk.Entry(self.rpoc_frame, textvariable=self.mask_ttl_channel_var)
+
+        self.mask_ttl_entry.bind("<Return>", lambda event: self.show_feedback(self.mask_ttl_entry))
+        self.mask_ttl_entry.bind("<FocusOut>", lambda event: self.show_feedback(self.mask_ttl_entry))
+
+        self.mask_ttl_entry.grid(row=4, column=1, padx=5, pady=5, columnspan=1, sticky='ew')
 
 
 
@@ -485,7 +432,19 @@ class GUI:
         )
         Tooltip(info_button_param, galvo_tooltip_text)
 
-    
+
+
+        ###################################################################
+        ######################### COLORBAR SETTINGS #######################
+        ###################################################################
+        self.cb_pane = CollapsiblePane(self.sidebar, text="Colorbar Settings", gui=self)
+        self.cb_pane.pack(fill="x", padx=10, pady=5)
+        self.cb_frame = ttk.Frame(self.cb_pane.container, padding=(12, 12))
+        self.cb_frame.grid(row=0, column=0, sticky="ew")
+
+        self.create_colorbar_settings()
+
+
 
         ###################################################################
         ####################### DATA DISPLAY STUFF ########################
@@ -635,7 +594,8 @@ class GUI:
                     if channels != self.config[key]:
                         self.config[key] = channels
                         self.show_feedback(entry)
-                        self.update_rpoc_options() 
+                        self.update_rpoc_options()
+                        self.create_colorbar_settings()  # Refresh UI for colorbars dynamically
                 elif key == 'zaber_chan':
                     if value != self.config['zaber_chan']:  
                         if self.zaber_stage.is_connected():
@@ -731,15 +691,55 @@ class GUI:
             self.continuous_button.configure(state='normal')
 
     def toggle_rpoc_fields(self):
-        parent = self.rpoc_checkbutton.winfo_parent()
-        parent = self.rpoc_checkbutton.nametowidget(parent)
-        state = "normal" if self.rpoc_enabled.get() else "disabled"
-
-        for widget in parent.winfo_children():
-            if widget != self.rpoc_checkbutton:
-                widget.configure(state=state)
-        
         self.update_rpoc_options()  
+
+    def update_colorbar_entry_state(self, ch):
+        widget = self.fixed_colorbar_widgets.get(ch)
+        if widget:
+            if self.auto_colorbar_vars[ch].get():
+                widget.configure(state='disabled')
+            else:
+                widget.configure(state='normal')
+
+    def create_colorbar_settings(self):
+        for widget in self.cb_frame.winfo_children():
+            widget.destroy()
+
+        self.auto_colorbar_vars.clear()
+        self.fixed_colorbar_vars.clear()
+        self.fixed_colorbar_widgets.clear()
+
+        temp = self.config['channel_names']
+        for i, val in enumerate(self.config['ai_chans']):
+            if len(self.config['channel_names']) <= i:
+                temp.append(val)
+
+        for i, ch in enumerate(self.config['ai_chans']):
+            row_frame = ttk.Frame(self.cb_frame)
+            row_frame.pack(fill="x", pady=2)
+
+            lbl = ttk.Label(row_frame, text=temp[i], width=10)
+            lbl.pack(side="left")
+
+            auto_var = tk.BooleanVar(value=True)
+            self.auto_colorbar_vars[ch] = auto_var
+            auto_cb = ttk.Checkbutton(
+                row_frame,
+                text="Auto Scale",
+                variable=auto_var,
+                command=lambda ch=ch: self.update_colorbar_entry_state(ch)
+            )
+            auto_cb.pack(side="left", padx=5)
+
+            fixed_var = tk.StringVar(value="")
+            self.fixed_colorbar_vars[ch] = fixed_var
+            fixed_entry = ttk.Entry(row_frame, textvariable=fixed_var, width=8)
+            fixed_entry.pack(side="left", padx=5)
+            self.fixed_colorbar_widgets[ch] = fixed_entry
+
+            fixed_entry.configure(state='disabled')
+
+        self.cb_frame.update_idletasks()
 
 
     def close(self):
