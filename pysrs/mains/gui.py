@@ -354,6 +354,8 @@ class GUI:
         )
         self.movestage_button.grid(row=6, column=1, padx=5, pady=10, sticky='ew')
 
+
+
         ###################################################################
         ####################### PRIOR STAGE STUFF #########################
         ###################################################################
@@ -375,6 +377,8 @@ class GUI:
 
         self.prior_move_button = ttk.Button(self.prior_stage_frame, text="Move Z", command=self.move_prior_stage)
         self.prior_move_button.grid(row=2, column=0, columnspan=2, pady=5, sticky="ew")
+
+
 
         ###################################################################
         ########################### RPOC STUFF ############################
@@ -404,9 +408,10 @@ class GUI:
         newmask_button = ttk.Button(self.rpoc_frame, text='Create New Mask', command=self.create_mask)
         newmask_button.grid(row=2, column=0, padx=5, pady=5, sticky="ew")
 
+        ttk.Label(self.rpoc_frame, text='Create mask from: ').grid(row=2, column=1, padx=5, pady=5, sticky='w')
         self.rpoc_channel_var = tk.StringVar()
         self.rpoc_channel_entry = ttk.Entry(self.rpoc_frame, textvariable=self.rpoc_channel_var)
-        self.rpoc_channel_entry.grid(row=2, column=1, padx=5, pady=5, sticky="ew")
+        self.rpoc_channel_entry.grid(row=2, column=2, padx=5, pady=5, sticky="ew")
 
         self.rpoc_channel_entry.bind("<Return>", self.finalize_selection)
         self.rpoc_channel_entry.bind("<FocusOut>", self.finalize_selection)
@@ -419,10 +424,11 @@ class GUI:
         )
         apply_mask_check.grid(row=3, column=0, padx=5, pady=5, sticky="w")
 
-        ttk.Label(self.rpoc_frame, text='TTL AO Channel:').grid(row=3, column=1, padx=5, pady=5, sticky='e')
+        ttk.Label(self.rpoc_frame, text='TTL AO Channel:').grid(row=3, column=1, padx=5, pady=5, sticky='w')
         self.mask_ttl_channel_var = tk.StringVar(value="ao2")
         mask_ttl_entry = ttk.Entry(self.rpoc_frame, textvariable=self.mask_ttl_channel_var)
         mask_ttl_entry.grid(row=3, column=2, padx=5, pady=5, sticky='ew')
+
 
 
         ###################################################################
