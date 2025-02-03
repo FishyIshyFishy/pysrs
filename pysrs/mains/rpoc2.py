@@ -120,8 +120,12 @@ class RPOC:
 
         self.mask_canvas = tk.Canvas(self.display_frame, bg=self.bg_color, highlightthickness=0)
         self.mask_canvas.pack(side=tk.LEFT, fill='both', expand=True)
+
         self.preview_canvas = tk.Canvas(self.display_frame, bg=self.bg_color, highlightthickness=0)
         self.preview_canvas.pack(side=tk.LEFT, fill='both', expand=True)
+
+        self.mask_canvas.bind("<Configure>", self.on_resize)
+        self.preview_canvas.bind("<Configure>", self.on_resize)
 
         self.mask_image_id = None
         self.preview_image_id = None
@@ -170,9 +174,10 @@ class RPOC:
         self.preview_canvas.bind('<B1-Motion>', self.draw_mask)
         self.preview_canvas.bind('<ButtonRelease-1>', self.stop_drawing)
 
-    def on_resize(self, event):
-        if event.widget != self.root:
-            return
+        self.root.after(100, self.update_images)
+
+
+    def on_resize(self, event=None):
         self.update_images()
 
     def get_base_image(self):

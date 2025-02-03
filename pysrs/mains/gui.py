@@ -14,6 +14,7 @@ import calibration
 import display
 import math
 from utils import Tooltip, generate_data, convert
+from pysrs.instruments.prior_stage.prior_stage_movement_test import send_command, wait_for_z_motion
 
 BASE_DIR = Path(__file__).resolve().parent.parent # directory definition to access icons that i will add later 
 FOLDERICON_PATH = BASE_DIR / "data" / "folder_icon.png" # for browsing the save path
@@ -303,46 +304,55 @@ class GUI:
         ###################################################################
         self.delay_pane = CollapsiblePane(self.sidebar, text='Delay Stage Settings', gui=self)
         self.delay_pane.pack(fill="x", padx=10, pady=5)
+
         self.delay_stage_frame = ttk.Frame(self.delay_pane.container, padding=(12, 12))
         self.delay_stage_frame.grid(row=0, column=0, sticky="nsew")
+
         for col in range(3):
             self.delay_stage_frame.columnconfigure(col, weight=1)
+
+        ttk.Label(self.delay_stage_frame, text="Zaber Port (COM #)").grid(row=0, column=0, padx=5, pady=3, sticky="w")
+        self.zaber_port_entry = ttk.Entry(self.delay_stage_frame, width=10)
+        self.zaber_port_entry.insert(0, self.config['zaber_chan'])  # Default from config
+        self.zaber_port_entry.grid(row=0, column=1, padx=5, pady=3, sticky="ew")
 
         self.delay_hyperspec_checkbutton = ttk.Checkbutton(
             self.delay_stage_frame, text='Enable Hyperspectral Scanning',
             variable=self.hyperspectral_enabled, command=self.toggle_hyperspectral_fields
         )
-        self.delay_hyperspec_checkbutton.grid(row=0, column=0, columnspan=2, padx=5, pady=5, sticky='w')
+        self.delay_hyperspec_checkbutton.grid(row=1, column=0, columnspan=2, padx=5, pady=5, sticky='w')
 
-        ttk.Label(self.delay_stage_frame, text='Start (µm)').grid(row=1, column=0, sticky='e', padx=5, pady=3)
+        ttk.Label(self.delay_stage_frame, text="Start (µm)").grid(row=2, column=0, sticky="w", padx=5, pady=3)
         self.entry_start_um = ttk.Entry(self.delay_stage_frame, width=10)
         self.entry_start_um.insert(0, str(self.hyper_config['start_um']))
-        self.entry_start_um.grid(row=1, column=1, padx=5, pady=3, sticky='w')
+        self.entry_start_um.grid(row=2, column=1, padx=5, pady=3, sticky="ew")
 
-        ttk.Label(self.delay_stage_frame, text='Stop (µm)').grid(row=2, column=0, sticky='e', padx=5, pady=3)
+        ttk.Label(self.delay_stage_frame, text="Stop (µm)").grid(row=3, column=0, sticky="w", padx=5, pady=3)
         self.entry_stop_um = ttk.Entry(self.delay_stage_frame, width=10)
         self.entry_stop_um.insert(0, str(self.hyper_config['stop_um']))
-        self.entry_stop_um.grid(row=2, column=1, padx=5, pady=3, sticky='w')
+        self.entry_stop_um.grid(row=3, column=1, padx=5, pady=3, sticky="ew")
 
-        ttk.Label(self.delay_stage_frame, text='Single Delay (µm)').grid(row=3, column=0, sticky='e', padx=5, pady=3)
+        ttk.Label(self.delay_stage_frame, text="Single Delay (µm)").grid(row=4, column=0, sticky="w", padx=5, pady=3)
         self.entry_single_um = ttk.Entry(self.delay_stage_frame, width=10)
         self.entry_single_um.insert(0, str(self.hyper_config['single_um']))
-        self.entry_single_um.grid(row=3, column=1, padx=5, pady=3, sticky='w')
-        self.entry_single_um.bind('<Return>', self.single_delay_changed) # instantly change delay stage position for convenience
+        self.entry_single_um.grid(row=4, column=1, padx=5, pady=3, sticky="ew")
+        self.entry_single_um.bind('<Return>', self.single_delay_changed)
         self.entry_single_um.bind('<FocusOut>', self.single_delay_changed)
 
-        ttk.Label(self.delay_stage_frame, text='Number of Shifts').grid(row=4, column=0, sticky='e', padx=5, pady=3)
+        ttk.Label(self.delay_stage_frame, text="Number of Shifts").grid(row=5, column=0, sticky="w", padx=5, pady=3)
         self.entry_numshifts = ttk.Entry(self.delay_stage_frame, width=10)
         self.entry_numshifts.insert(0, '10')
-        self.entry_numshifts.grid(row=4, column=1, padx=5, pady=3, sticky='w')
+        self.entry_numshifts.grid(row=5, column=1, padx=5, pady=3, sticky="ew")
 
-        # TODO: make the calibration pretty in dark mode
-        # for some reason using a lambda here delays the function from running on startup, more python black magic i guess
-        calibrate_button = ttk.Button(self.delay_stage_frame, text='Calibrate',
-                                      command=lambda: calibration.calibrate_stage(self)) 
-        calibrate_button.grid(row=1, column=2, padx=5, pady=10, sticky='ew')
-        movestage_button = ttk.Button(self.delay_stage_frame, text='Move Stage', command=self.force_zaber)
-        movestage_button.grid(row=3, column=2, padx=5, pady=10, sticky='ew')
+        self.calibrate_button = ttk.Button(
+            self.delay_stage_frame, text='Calibrate', command=lambda: calibration.calibrate_stage(self)
+        )
+        self.calibrate_button.grid(row=6, column=0, padx=5, pady=10, sticky='ew')
+
+        self.movestage_button = ttk.Button(
+            self.delay_stage_frame, text='Move Stage', command=self.force_zaber
+        )
+        self.movestage_button.grid(row=6, column=1, padx=5, pady=10, sticky='ew')
 
         ###################################################################
         ########################### RPOC STUFF ############################
@@ -379,6 +389,29 @@ class GUI:
         self.rpoc_channel_entry.bind("<Return>", self.finalize_selection)
         self.rpoc_channel_entry.bind("<FocusOut>", self.finalize_selection)
 
+        ###################################################################
+        ####################### PRIOR STAGE STUFF #########################
+        ###################################################################
+        self.prior_pane = CollapsiblePane(self.sidebar, text='Prior Stage Settings', gui=self)
+        self.prior_pane.pack(fill="x", padx=10, pady=5)
+        self.prior_stage_frame = ttk.Frame(self.prior_pane.container, padding=(12, 12))
+        self.prior_stage_frame.grid(row=0, column=0, sticky="nsew")
+        for col in range(3):
+            self.prior_stage_frame.columnconfigure(col, weight=1)
+
+        ttk.Label(self.prior_stage_frame, text="Port (COM #)").grid(row=0, column=0, padx=5, pady=3, sticky="w")
+        self.prior_port_entry = ttk.Entry(self.prior_stage_frame, width=10)
+        self.prior_port_entry.insert(0, "4")  # Default port for Prior Stage
+        self.prior_port_entry.grid(row=0, column=1, padx=5, pady=3, sticky="ew")
+
+        ttk.Label(self.prior_stage_frame, text="Set Z Height (µm)").grid(row=1, column=0, padx=5, pady=3, sticky="w")
+        self.prior_z_entry = ttk.Entry(self.prior_stage_frame, width=10)
+        self.prior_z_entry.grid(row=1, column=1, padx=5, pady=3, sticky="ew")
+
+        self.prior_move_button = ttk.Button(self.prior_stage_frame, text="Move Z", command=self.move_prior_stage)
+        self.prior_move_button.grid(row=2, column=0, columnspan=2, pady=5, sticky="ew")
+
+
 
         ###################################################################
         ###################### PARAMETER ENTRY STUFF ######################
@@ -392,9 +425,9 @@ class GUI:
         num_cols = 3 # i have no idea how many columns looks cleanest so just make it flexible
         param_groups = [
             ('Device', 'device'), ('Amp X', 'amp_x'), ('Amp Y', 'amp_y'),
-            ('Delay Chan', 'zaber_chan'), ('Steps X', 'numsteps_x'), ('Steps Y', 'numsteps_y'),
-            ('AO Chans', 'ao_chans'),  ('Sampling Rate (Hz)', 'rate'), ('Dwell Time (us)', 'dwell'),
-            ('AI Chans', 'ai_chans'), ('Input Names', 'channel_names'), ('Padding steps', 'numsteps_extra'),
+            ('AO Chans', 'ao_chans'), ('Steps X', 'numsteps_x'), ('Steps Y', 'numsteps_y'),
+            ('AI Chans', 'ai_chans'), ('Sampling Rate (Hz)', 'rate'), ('Dwell Time (us)', 'dwell'),
+            ('Input Names', 'channel_names'), ('Padding steps', 'numsteps_extra'),
         ]
 
         for index, (label_text, key) in enumerate(param_groups): # enumeration black magic to cleanly make all the entries
@@ -434,6 +467,7 @@ class GUI:
         )
         Tooltip(info_button_param, galvo_tooltip_text)
 
+    
 
         ###################################################################
         ####################### DATA DISPLAY STUFF ########################
@@ -491,7 +525,32 @@ class GUI:
         except Exception as e:
             messagebox.showerror("Stage Move Error", f"Error moving stage: {e}")
 
-    
+    def move_prior_stage(self):
+        try:
+            port = int(self.prior_port_entry.get().strip())
+            z_height = int(self.prior_z_entry.get().strip())
+
+            if not (0 <= z_height <= 50000):  
+                messagebox.showerror("Value Error", "Z height must be between 0 and 50,000 µm.")
+                return
+
+            ret, response = send_command(f"controller.connect {port}")
+            if ret != 0:
+                messagebox.showerror("Connection Error", f"Could not connect to Prior stage on port COM{port}")
+            
+            ret, response = send_command(f"controller.z.goto-position {z_height}")
+            if ret != 0:
+                messagebox.showerror("Movement Error", f"Could not move Prior stage to {z_height}")
+
+            wait_for_z_motion()
+
+            _, current_pos = send_command("controller.z.position.get")
+
+            messagebox.showinfo("Success", f"Moved Prior Stage to {current_pos}.")
+
+        except ValueError:
+            messagebox.showerror("Input Error", "Please enter a valid numeric Z height and port.")
+
     def create_mask(self):
         if self.data is None or len(np.shape(self.data)) != 3:
             messagebox.showerror("Data Error", "No valid data available. Try acquiring an image first.")
