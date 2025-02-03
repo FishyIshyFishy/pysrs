@@ -702,44 +702,51 @@ class GUI:
                 widget.configure(state='normal')
 
     def create_colorbar_settings(self):
-        for widget in self.cb_frame.winfo_children():
-            widget.destroy()
+        existing_widgets = {ch: widget for ch, widget in self.fixed_colorbar_widgets.items()}
 
-        self.auto_colorbar_vars.clear()
-        self.fixed_colorbar_vars.clear()
-        self.fixed_colorbar_widgets.clear()
+        for ch in list(existing_widgets.keys()):
+            if ch not in self.config['ai_chans']:
+                widget_frame = existing_widgets[ch].master  # Get the parent frame of the entry widget
+                widget_frame.destroy()  # Destroy the entire row (frame containing label, checkbox, and entry)
+                del self.auto_colorbar_vars[ch]
+                del self.fixed_colorbar_vars[ch]
+                del self.fixed_colorbar_widgets[ch]
 
-        temp = self.config['channel_names']
+        temp = self.config.get('channel_names', [])
         for i, val in enumerate(self.config['ai_chans']):
-            if len(self.config['channel_names']) <= i:
+            if len(temp) <= i:
                 temp.append(val)
 
         for i, ch in enumerate(self.config['ai_chans']):
-            row_frame = ttk.Frame(self.cb_frame)
-            row_frame.pack(fill="x", pady=2)
+            channel_name = temp[i] if i < len(temp) else ch
 
-            lbl = ttk.Label(row_frame, text=temp[i], width=10)
-            lbl.pack(side="left")
+            if ch not in self.fixed_colorbar_widgets:
+                row_frame = ttk.Frame(self.cb_frame)
+                row_frame.pack(fill='x', pady=2)
 
-            auto_var = tk.BooleanVar(value=True)
-            self.auto_colorbar_vars[ch] = auto_var
-            auto_cb = ttk.Checkbutton(
-                row_frame,
-                text="Auto Scale",
-                variable=auto_var,
-                command=lambda ch=ch: self.update_colorbar_entry_state(ch)
-            )
-            auto_cb.pack(side="left", padx=5)
+                lbl = ttk.Label(row_frame, text=channel_name, width=10)
+                lbl.pack(side='left')
 
-            fixed_var = tk.StringVar(value="")
-            self.fixed_colorbar_vars[ch] = fixed_var
-            fixed_entry = ttk.Entry(row_frame, textvariable=fixed_var, width=8)
-            fixed_entry.pack(side="left", padx=5)
-            self.fixed_colorbar_widgets[ch] = fixed_entry
+                auto_var = tk.BooleanVar(value=True)
+                self.auto_colorbar_vars[ch] = auto_var
+                auto_cb = ttk.Checkbutton(
+                    row_frame,
+                    text='Auto Scale',
+                    variable=auto_var,
+                    command=lambda ch=ch: self.update_colorbar_entry_state(ch)
+                )
+                auto_cb.pack(side='left', padx=5)
 
-            fixed_entry.configure(state='disabled')
+                fixed_var = tk.StringVar(value="")
+                self.fixed_colorbar_vars[ch] = fixed_var
+                fixed_entry = ttk.Entry(row_frame, textvariable=fixed_var, width=8)
+                fixed_entry.pack(side="left", padx=5)
+                self.fixed_colorbar_widgets[ch] = fixed_entry
+
+                fixed_entry.configure(state='disabled')
 
         self.cb_frame.update_idletasks()
+
 
 
     def close(self):
