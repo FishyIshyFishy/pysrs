@@ -57,7 +57,14 @@ def display_data(gui, data_list):
         create_axes(gui, n_channels)
     
     gui.data = data_list
-    for i, data in enumerate(data_list):
+    for i, orig_data in enumerate(data_list):
+        # If the data is 3D with a singleton first dimension, squeeze it to 2D.
+        data = orig_data
+        if data.ndim == 3 and data.shape[0] == 1:
+            data = data[0]
+        elif data.ndim > 2:
+            data = np.squeeze(data)
+            
         ch_ax = gui.channel_axes[i]
         ax_main = ch_ax["main"]
         ny, nx = data.shape
@@ -79,12 +86,13 @@ def display_data(gui, data_list):
                 cmap='magma'
             )
             ch_ax["img_handle"] = im
-            ax_main.set_xlabel('')
-            ax_main.set_ylabel('')
+
             gui.slice_x[i] = nx // 2
             gui.slice_y[i] = ny // 2
-            ch_ax["vline"] = ax_main.axvline(x=x_extent[gui.slice_x[i]], color='red', linestyle='--', lw=2)
-            ch_ax["hline"] = ax_main.axhline(y=y_extent[gui.slice_y[i]], color='blue', linestyle='--', lw=2)
+
+            ch_ax["vline"] = ax_main.axvline(x=[x_extent[gui.slice_x[i]]], color='red', linestyle='--', lw=2)
+            ch_ax["hline"] = ax_main.axhline(y=[y_extent[gui.slice_y[i]]], color='blue', linestyle='--', lw=2)
+
             cax = ax_main.inset_axes([1.05, 0, 0.05, 1])
             cb = gui.fig.colorbar(im, cax=cax, orientation='vertical')
             cb.set_label('Intensity', color='white')
@@ -97,24 +105,37 @@ def display_data(gui, data_list):
         else:
             im = ch_ax["img_handle"]
             im.set_data(data)
-            im.set_clim(vmin=data.min(), vmax=data.max())
+            if hasattr(gui, "auto_colorbar_vars") and channel_name in gui.auto_colorbar_vars:
+                auto_scale = gui.auto_colorbar_vars[channel_name].get()
+            else:
+                auto_scale = True
+            if not auto_scale and hasattr(gui, "fixed_colorbar_vars") and channel_name in gui.fixed_colorbar_vars:
+                try:
+                    fixed_max = float(gui.fixed_colorbar_vars[channel_name].get())
+                except Exception:
+                    fixed_max = data.max()
+                im.set_clim(vmin=data.min(), vmax=fixed_max)
+            else:
+                im.set_clim(vmin=data.min(), vmax=data.max())
             im.set_extent([x_extent[0], x_extent[-1], y_extent[0], y_extent[-1]])
         
+        sx = gui.slice_x[i] if gui.slice_x[i] is not None and gui.slice_x[i] < nx else nx // 2
+        sy = gui.slice_y[i] if gui.slice_y[i] is not None and gui.slice_y[i] < ny else ny // 2
         if ch_ax["vline"] is not None:
-            ch_ax["vline"].set_xdata([x_extent[gui.slice_x[i]]])
+            ch_ax["vline"].set_xdata([x_extent[sx]])
         if ch_ax["hline"] is not None:
-            ch_ax["hline"].set_ydata([y_extent[gui.slice_y[i]]])
+            ch_ax["hline"].set_ydata([y_extent[sy]])
         
         ax_hslice = ch_ax["hslice"]
         ax_hslice.clear()
-        ax_hslice.plot(x_extent, data[gui.slice_y[i], :], color='blue', linewidth=1)
+        ax_hslice.plot(x_extent, data[sy, :], color='blue', linewidth=1)
         ax_hslice.yaxis.tick_right()
         ax_hslice.tick_params(axis='both', labelsize=8)
         ax_hslice.set_xlim(x_extent[0], x_extent[-1])
         
         ax_vslice = ch_ax["vslice"]
         ax_vslice.clear()
-        ax_vslice.plot(data[:, gui.slice_x[i]], y_extent, color='red', linewidth=1)
+        ax_vslice.plot(data[:, sx], y_extent, color='red', linewidth=1)
         ax_vslice.tick_params(axis='both', labelsize=8)
         ax_vslice.set_ylim(y_extent[0], y_extent[-1])
     
@@ -129,10 +150,11 @@ def on_image_click(gui, event):
 
     for i, ch_ax in enumerate(gui.channel_axes):
         if event.inaxes == ch_ax["main"]:
-            if gui.data and len(gui.data) > i:
-                data = gui.data[i]
-            else:
-                data = ch_ax["img_handle"].get_array()
+            data = gui.data[i]
+            if data.ndim == 3 and data.shape[0] == 1:
+                data = data[0]
+            elif data.ndim > 2:
+                data = np.squeeze(data)
             ny, nx = data.shape
             x_extent = np.linspace(-gui.config['amp_x'], gui.config['amp_x'], nx)
             y_extent = np.linspace(-gui.config['amp_y'], gui.config['amp_y'], ny)
@@ -144,7 +166,7 @@ def on_image_click(gui, event):
                 ch_ax["vline"].set_xdata([x_extent[gui.slice_x[i]]])
             if ch_ax["hline"] is not None:
                 ch_ax["hline"].set_ydata([y_extent[gui.slice_y[i]]])
-
+            
             current_data = gui.data if gui.data else [ax["img_handle"].get_array() for ax in gui.channel_axes]
             display_data(gui, current_data)
             return

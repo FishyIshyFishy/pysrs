@@ -5,21 +5,35 @@ import matplotlib.pyplot as plt
 import time
 
 class LockIn:
-    def __init__(self, device, ai_chan, **kwargs):
-        defaults = {
-            "device": device,
-            "ai_chan": ai_chan, 
-            "sampling_rate": 100,
-            "duration": 50
-        }
+    def __init__(self, device: str, ai_chan: str, sampling_rate: float = 1e6, config: dict = {}, **kwargs):
+        '''create an instance of an arbitrary NIDAQ analog input
+        
+        args:
+            device: string NIDAQ name, e.g. 'Dev1'
+            ai_chan: string channel name, e.g. 'ai1'
+            sampling_rate: rate at which to record datapoints from the device
+            duration: total true time to record data for
 
-        defaults.update(kwargs)
-        for key, val in defaults.items():
-            setattr(self, key, val)
+        returns: none
+        '''
+        
+        self.device = device
+        self.ai_chan = ai_chan
+        self.sampling_rate = sampling_rate
+
+        self.__dict__.update(kwargs)
 
         self.name = self.device + '/' + self.ai_chan
 
-    def live_series(self):
+    def show_live(self, duration: float = 10):
+        '''show live data collected from the arbitrary input
+
+        args:
+            duration: amount of time to collect live data for
+
+        returns: none
+        '''
+
         num_samples = int(self.duration * self.sampling_rate)
         counter = 0
 
@@ -72,7 +86,14 @@ class LockIn:
         print(f'acquisition done in {toc-tic} s')
         plt.show()
 
-    def collect(self, avg=True):
+    def collect(self) -> np.ndarray:
+        '''skeleton function for collecting data, modeled into acquisition
+        
+        args: none
+        
+        returns: 2D array, arr[0] is the times and arr[1] is corresponding data
+        '''
+
         num_samples = int(self.duration * self.sampling_rate)
         times = np.linspace(0, self.duration, num_samples)
         data = []

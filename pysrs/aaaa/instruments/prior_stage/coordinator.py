@@ -6,7 +6,14 @@ DLL_PATH = r"C:\Users\Lab Admin\Documents\PythonStuff\pysrs\pysrs\instruments\pr
 SDKPrior = None
 sessionID = None 
 
-def initialize_sdk():
+def initialize_sdk() -> None:
+    '''only useful for send_command(), opens the .dll file to initialize the SDK via WinDLL
+
+    args: none
+
+    returns: non
+    '''
+
     global SDKPrior, sessionID
 
     if SDKPrior is None:
@@ -28,7 +35,14 @@ def initialize_sdk():
 
         print(f"SDK Session Opened. Session ID: {sessionID}")
 
-def send_command(command):
+def send_command(command: str) -> tuple[int, str]:
+    '''main function to send any command to the stage
+    
+    args: none
+
+    returns: none
+    '''
+
     initialize_sdk()  # error code -10200 heheheheheehruiaewrgilaeuwblaiewjghlkajgbla,knja,ekjb
 
     rx = create_string_buffer(1000)
@@ -42,28 +56,11 @@ def send_command(command):
 
     return ret, response
 
-def wait_for_z_motion():
-    while True:
-        _, response = send_command("controller.z.busy.get")
-
-        if response:
-            try:
-                status = int(response)
-                if status == 0:
-                    break  
-            except ValueError:
-                print(f"Invalid response from controller: '{response}'")
-        else:
-            print("No response from controller, is it connected?")
-
-        time.sleep(0.1)  
-
 if __name__ == "__main__":
     print("connecting")
     send_command("controller.connect 4")
 
     send_command(f"controller.z.goto-position 10000") 
-    wait_for_z_motion()  
     _, current_pos = send_command("controller.z.position.get") 
     print(f"z pos after move: {current_pos}")
 
