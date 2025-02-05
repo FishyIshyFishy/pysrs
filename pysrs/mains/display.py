@@ -1,7 +1,6 @@
 import numpy as np
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 import math
-import tkinter as tk
 
 def create_axes(gui, n_channels):
     gui.fig.clf()
@@ -56,23 +55,26 @@ def display_data(gui, data_list):
     n_channels = len(data_list)
     if (not gui.channel_axes) or (len(gui.channel_axes) != n_channels):
         create_axes(gui, n_channels)
-
+    
     gui.data = data_list
     for i, orig_data in enumerate(data_list):
-        data = np.squeeze(orig_data) if orig_data.ndim > 2 else orig_data
-
+        # If the data is 3D with a singleton first dimension, squeeze it to 2D.
+        data = orig_data
+        if data.ndim == 3 and data.shape[0] == 1:
+            data = data[0]
+        elif data.ndim > 2:
+            data = np.squeeze(data)
+            
         ch_ax = gui.channel_axes[i]
         ax_main = ch_ax["main"]
         ny, nx = data.shape
         x_extent = np.linspace(-gui.config['amp_x'], gui.config['amp_x'], nx)
         y_extent = np.linspace(-gui.config['amp_y'], gui.config['amp_y'], ny)
 
-        # **Ensure correct channel naming**
         if 'channel_names' in gui.config and len(gui.config['channel_names']) > i:
             channel_name = gui.config['channel_names'][i]
         else:
             channel_name = gui.config['ai_chans'][i] if i < len(gui.config['ai_chans']) else f"chan{i}"
-        
         ax_main.set_title(channel_name, fontsize=10, color='white')
 
         if ch_ax["img_handle"] is None:
@@ -103,43 +105,41 @@ def display_data(gui, data_list):
         else:
             im = ch_ax["img_handle"]
             im.set_data(data)
-
-            # **Use channel name for colorbar reference**
-            auto_scale = gui.auto_colorbar_vars.get(channel_name, tk.BooleanVar(value=True)).get()
-            
-            if not auto_scale:
+            if hasattr(gui, "auto_colorbar_vars") and channel_name in gui.auto_colorbar_vars:
+                auto_scale = gui.auto_colorbar_vars[channel_name].get()
+            else:
+                auto_scale = True
+            if not auto_scale and hasattr(gui, "fixed_colorbar_vars") and channel_name in gui.fixed_colorbar_vars:
                 try:
-                    fixed_max = float(gui.fixed_colorbar_vars.get(channel_name, tk.StringVar(value="")).get())
+                    fixed_max = float(gui.fixed_colorbar_vars[channel_name].get())
                 except Exception:
                     fixed_max = data.max()
                 im.set_clim(vmin=data.min(), vmax=fixed_max)
             else:
                 im.set_clim(vmin=data.min(), vmax=data.max())
-
             im.set_extent([x_extent[0], x_extent[-1], y_extent[0], y_extent[-1]])
-
+        
         sx = gui.slice_x[i] if gui.slice_x[i] is not None and gui.slice_x[i] < nx else nx // 2
         sy = gui.slice_y[i] if gui.slice_y[i] is not None and gui.slice_y[i] < ny else ny // 2
         if ch_ax["vline"] is not None:
             ch_ax["vline"].set_xdata([x_extent[sx]])
         if ch_ax["hline"] is not None:
             ch_ax["hline"].set_ydata([y_extent[sy]])
-
+        
         ax_hslice = ch_ax["hslice"]
         ax_hslice.clear()
         ax_hslice.plot(x_extent, data[sy, :], color='blue', linewidth=1)
         ax_hslice.yaxis.tick_right()
         ax_hslice.tick_params(axis='both', labelsize=8)
         ax_hslice.set_xlim(x_extent[0], x_extent[-1])
-
+        
         ax_vslice = ch_ax["vslice"]
         ax_vslice.clear()
         ax_vslice.plot(data[:, sx], y_extent, color='red', linewidth=1)
         ax_vslice.tick_params(axis='both', labelsize=8)
         ax_vslice.set_ylim(y_extent[0], y_extent[-1])
-
+    
     gui.canvas.draw_idle()
-
 
 
 def on_image_click(gui, event):
