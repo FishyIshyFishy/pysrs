@@ -31,7 +31,7 @@ class ZaberStage:
             future = executor.submit(self._connect)
             future.result(timeout=timeout)
 
-    def _connect(self):
+    def _connect(self) -> None:
         '''helper method for connection to the zaber stage
 
         args: none
@@ -53,7 +53,7 @@ class ZaberStage:
         if not self.axis.is_homed():
             self.axis.home()
 
-    def move_absolute_um(self, position_um: int):
+    def move_absolute_um(self, position_um: int) -> None:
         '''move the zaber stage in micrometers
         
         args: 
@@ -68,7 +68,7 @@ class ZaberStage:
         self.axis.move_absolute(position_mm, Units.LENGTH_MILLIMETRES)
         self.axis.wait_until_idle()
 
-    def disconnect(self):
+    def disconnect(self) -> None:
         '''cleanly reset and disconnect from the zaber stage
         
         args: none

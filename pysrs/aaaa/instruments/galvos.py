@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 from PIL import Image
 
 class Galvo: 
-    def __init__(self, config: dict, amp_x: float = 0.5, amp_y: float = 0.5, numsteps_x: int = 100, numsteps_y: int = 100,
+    def __init__(self, config: dict = {}, amp_x: float = 0.5, amp_y: float = 0.5, numsteps_x: int = 100, numsteps_y: int = 100,
                 extrasteps_left: int = 100, extrasteps_right: int = 100, offset_x: float = -1.2, offset_y: float = 1.5,
                 dwell: float = 1e-5, rate: float = 1e6, device: str = 'Dev1', ao_chans: list = ['ao1, ao0']) -> None:
         '''create a Galvo object
@@ -24,7 +24,7 @@ class Galvo:
 
         returns: none
         '''
-
+        
         self.amp_x = amp_x
         self.amp_y = amp_y
         self.numsteps_x = numsteps_x
@@ -37,6 +37,9 @@ class Galvo:
         self.rate = rate
         self.device = device
         self.ao_chans = ao_chans
+
+        self.__dict__.update(config) # config gets the final say on what parameters are what
+        
                
         self.pixel_samples = max(1, int(self.dwell * self.rate))
         self.total_x = self.numsteps_x + self.extrasteps_left + self.extrasteps_right
@@ -59,7 +62,7 @@ class Galvo:
         y_steps = np.linspace(self.amp_y, -self.amp_y, self.total_y) + self.offset_y # [4,5,6]
         y_waveform = np.repeat(y_steps, self.pixel_samples * self.total_x) # [4,4,4,5,5,5,6,6,6]
 
-        composite = np.vstack(x_waveform, y_waveform)
+        composite = np.vstack([x_waveform, y_waveform])
 
         return composite
     
@@ -90,7 +93,6 @@ class Galvo:
         
 
 if __name__ == '__main__':
-
     config = {
         "device": 'Dev1',
         "ao_chans": ['ao1', 'ao0'],
@@ -101,28 +103,20 @@ if __name__ == '__main__':
         "numsteps_y": 100,
         "dwell": 50e-6,
     }
-    # Create a dummy mask (for example purposes, a white rectangle on a black background)
-    dummy_mask = Image.new('L', (config["numsteps_x"] + 2*100, config["numsteps_y"] + 2*100), 0)
-    from PIL import ImageDraw
-    draw = ImageDraw.Draw(dummy_mask)
-    draw.rectangle([100, 100, 200, 200], fill=255)
 
-    # Create a Galvo instance with RPOC (TTL) mode enabled.
-    galvo = Galvo(config, rpoc_mask=dummy_mask, ttl_channel="ao2")
+    galvo = Galvo(config)
     galvo.waveform = galvo.gen_raster()
+    print(galvo.waveform.shape)
+    print(galvo.total_samples)
 
-    # (Optional) Plot the original x and y waveforms.
-    times = np.arange(galvo.waveform.shape[1]) / config['rate']
-    plt.figure(figsize=(10, 6))
-    plt.plot(times, galvo.waveform[0], label='x (fast axis)', color='black')
-    plt.plot(times, galvo.waveform[1], label='y (slow axis)', color='blue')
-    plt.xlabel('Time (s)')
-    plt.ylabel('Voltage (V)')
-    plt.title('Raster Scan Waveforms (without TTL channel)')
-    plt.legend()
-    plt.grid()
-    plt.tight_layout()
-    plt.show()
-
-    # Run the raster scan (this will output the TTL signal along with the galvo signals)
-    galvo.do_raster()
+    # times = np.arange(galvo.waveform.shape[1]) / config['rate']
+    # plt.figure(figsize=(10, 6))
+    # plt.plot(times, galvo.waveform[0], label='x (fast axis)', color='black')
+    # plt.plot(times, galvo.waveform[1], label='y (slow axis)', color='blue')
+    # plt.xlabel('Time (s)')
+    # plt.ylabel('Voltage (V)')
+    # plt.title('Raster Scan Waveforms') 
+    # plt.legend()
+    # plt.grid()
+    # plt.tight_layout()
+    # plt.show()

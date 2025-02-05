@@ -178,7 +178,7 @@ class GUI:
 
         self.continuous_button = ttk.Button(
             self.control_frame, text='Acq. Continuous',
-            command=lambda: acquisition.start_scan(self)
+            command=lambda: acquisition.acquire_continuously(self)
         )
         self.continuous_button.grid(row=0, column=0, padx=5, pady=5, sticky='ew')
 

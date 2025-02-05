@@ -5,7 +5,7 @@ import time, threading
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from pysrs.instruments.galvo_funcs import Galvo
-from pysrs.runners.run_image_2d import lockin_scan
+from pysrs.aaaa.acquisition.acquire import lockin_scan
 
 def calibrate_stage(gui):
     cal_win = tk.Toplevel(gui.root)

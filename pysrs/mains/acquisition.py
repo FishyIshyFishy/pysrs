@@ -4,56 +4,8 @@ import numpy as np
 from PIL import Image
 from utils import *
 from display import *
-from pysrs.instruments.galvo_funcs import Galvo
-from pysrs.runners.run_image_2d import lockin_scan
-
-def start_scan(gui):
-    if gui.running:
-        messagebox.showwarning('Warning', 'Scan is already running.')
-        return
-        
-    rpoc_mask = None
-    ttl_channel = None
-
-    if gui.rpoc_enabled.get() and gui.apply_mask_var.get():
-        if hasattr(gui, 'rpoc_mask') and gui.rpoc_mask is not None:
-            rpoc_mask = gui.rpoc_mask
-            ttl_channel = gui.mask_ttl_channel_var.get().strip()
-        else:
-            messagebox.showerror("Mask Error", "No valid mask loaded. Please load or create a mask.")
-            return
-
-    gui.running = True
-    gui.continuous_button['state'] = 'disabled'
-    gui.stop_button['state'] = 'normal'
-
-    threading.Thread(target=scan, args=(gui,), kwargs={'rpoc_mask': rpoc_mask, 'ttl_channel': ttl_channel}, daemon=True).start()
-
-def stop_scan(gui):
-    gui.running = False
-    gui.acquiring = False
-    gui.continuous_button['state'] = 'normal'
-    gui.stop_button['state'] = 'disabled'
-    gui.single_button['state'] = 'normal'
-
-def scan(gui, rpoc_mask=None, ttl_channel=None):
-    try:
-        while gui.running:
-            gui.update_config()
-            channels = [f"{gui.config['device']}/{ch}" for ch in gui.config['ai_chans']]
-            galvo = Galvo(gui.config, rpoc_mask=rpoc_mask, ttl_channel=ttl_channel)
-            if gui.simulation_mode.get():
-                data_list = generate_data(len(channels), config=gui.config)
-            else:
-                data_list = lockin_scan(channels, galvo)
-            gui.root.after(0, display_data, gui, data_list)
-    except Exception as e:
-        messagebox.showerror('Error', f'Cannot display data: {e}')
-    finally:
-        gui.running = False
-        gui.continuous_button['state'] = 'normal'
-        gui.stop_button['state'] = 'disabled'
-
+from pysrs.aaaa.instruments.galvos import Galvo
+from pysrs.aaaa.acquisition.acquire import lockin_scan
 
 def acquire(gui, startup=False):
     if gui.running and not startup:
